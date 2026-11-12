@@ -1,11 +1,13 @@
 ---
 name: herdr-shortcuts
-description: Windows에서 Herdr 앱(herdr-app)의 단축키를 보여 주거나 바꿀 때 쓴다. "herdr 단축키 보자", "이 키 뭐 하는 거야", "Ctrl+Shift+↑에 스페이스 전환 걸어줘", "이 단축키 없애줘", "스페이스 닫는 키는?", "keys.json 고쳐줘", "새 PC에 내 herdr 키 설정 맞춰줘" 같은 요청이면 herdr라는 말만 나와도 이 스킬을 쓴다. keys.json을 읽어 표로 정리하고, 키 충돌을 확인한 뒤 추가·삭제하고, keys.error와 herdr-app status로 적용 여부를 검증하는 절차다.
+description: Windows와 macOS에서 Herdr 앱(herdr-app)의 단축키를 보여 주거나 바꿀 때 쓴다. "herdr 단축키 보자", "이 키 뭐 하는 거야", "Ctrl+Shift+↑에 스페이스 전환 걸어줘", "이 단축키 없애줘", "스페이스 닫는 키는?", "keys.json 고쳐줘", "새 PC에 내 herdr 키 설정 맞춰줘" 같은 요청이면 herdr라는 말만 나와도 이 스킬을 쓴다. keys.json을 읽어 표로 정리하고, 키 충돌을 확인한 뒤 추가·삭제하고, keys.error와 herdr-app status로 적용 여부를 검증하는 절차다.
 ---
 
-# Herdr 단축키 (Windows)
+# Herdr 단축키 (Windows, macOS)
 
-Herdr 앱은 단축키를 파일 하나로 정한다. 그 파일을 읽어 보여 주고, 고치고, 제대로 적용됐는지 확인하는 것이 이 스킬의 전부다. macOS는 `cmd` 키와 기본값이 달라서 여기서는 Windows만 다룬다.
+Herdr 앱은 단축키를 파일 하나로 정한다. 그 파일을 읽어 보여 주고, 고치고, 제대로 적용됐는지 확인하는 것이 이 스킬의 전부다.
+
+**먼저 OS를 본다.** Windows와 macOS는 기본 단축키가 다르다. `uname`이 `Darwin`이면 Mac이다. Mac이면 아래 절차는 그대로 따르되, 경로·확인 명령·조심할 것은 맨 아래 "macOS" 절을 쓰고, 우리 설정은 `references/csm-kr-preset-mac.md`를 쓴다.
 
 ## 파일
 
@@ -19,7 +21,7 @@ Herdr 앱은 단축키를 파일 하나로 정한다. 그 파일을 읽어 보�
 
 ## 단축키 보여 주기
 
-`keys.json`을 읽고 아래 묶음으로 나눠 표로 보여 준다. 앱의 단축키 화면(`Ctrl+Shift+/`)과 같은 묶음이라 사용자가 화면과 맞춰 보기 쉽다.
+`keys.json`을 읽고 아래 묶음으로 나눠 표로 보여 준다. 앱의 단축키 화면(Windows `Ctrl+Shift+/`, Mac `Cmd+/`)과 같은 묶음이라 사용자가 화면과 맞춰 보기 쉽다.
 
 | 묶음 | 해당하는 동작 |
 |---|---|
@@ -98,4 +100,28 @@ Herdr 앱은 단축키를 파일 하나로 정한다. 그 파일을 읽어 보�
 
 ## 내 설정
 
-기본값에서 바꿔 쓰는 키는 `references/csm-kr-preset.md`에 있다. 새 PC에 같은 설정을 맞춰 달라는 요청일 때만 읽고, 파일을 통째로 덮어쓰지 말고 거기 적힌 줄만 위 절차대로 하나씩 반영한다. 통째로 덮으면 그 PC의 버전에 새로 생긴 기본 단축키가 사라진다.
+기본값에서 바꿔 쓰는 키는 Windows는 `references/csm-kr-preset.md`, macOS는 `references/csm-kr-preset-mac.md`에 있다. 두 OS의 기본값이 달라 목록도 따로다. 새 PC에 같은 설정을 맞춰 달라는 요청일 때만 읽고, 파일을 통째로 덮어쓰지 말고 거기 적힌 줄만 위 절차대로 하나씩 반영한다. 통째로 덮으면 그 PC의 버전에 새로 생긴 기본 단축키가 사라진다.
+
+## macOS
+
+위 절차와 동작 쓰는 법은 같다. 다른 점만 적는다.
+
+| 경로 | 쓰임 |
+|---|---|
+| `~/.config/herdr-app/keys.json` | 모든 단축키. 저장하면 1초 안에 앱에 반영된다 |
+| `~/.config/herdr-app/keys.error` | 파일이 잘못됐을 때만 생긴다. 이유가 적혀 있다 |
+| `~/.config/herdr-app/settings.json` | 앱 설정. 단축키와 관련된 것은 `option_as_alt` |
+| `~/.config/herdr-app/AGENTS.md` | 설치된 버전의 공식 설명서. 이 스킬과 다르면 저쪽이 맞다 |
+
+- **키 이름에 `cmd`가 있다.** 보여 줄 때는 `cmd-shift-w` → `Cmd+Shift+W`, `alt-h` → `Option+H`로 적는다.
+- **적용 확인(5단계)은 bash로 한다.**
+
+  ```bash
+  sleep 2
+  test -e ~/.config/herdr-app/keys.error && cat ~/.config/herdr-app/keys.error   # 아무것도 안 나와야 한다
+  herdr-app status                                                                # "errors": [] 여야 한다
+  ```
+
+- **`alt-` 키는 Option 설정을 먼저 본다.** `settings.json`의 `option_as_alt`가 기본값 `auto`면 US·ABC 자판에서만 Option이 Alt로 간다. 한글 등 다른 자판에서는 Option이 글자를 입력하므로 `"on"`이어야 한다.
+- **`Ctrl+Alt`(AltGr) 주의는 Mac에는 없다.** 대신 Option+글자·숫자는 많은 Mac 자판에서 `[`, `@` 같은 글자를 입력하니 먼저 권하지 않는다.
+- **`Ctrl+Alt+Shift+Esc` 비상 탈출 키는 Mac에서도 같다.**
