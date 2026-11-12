@@ -113,7 +113,7 @@ Herdr 앱은 단축키를 파일 하나로 정한다. 그 파일을 읽어 보�
 | `~/.config/herdr-app/settings.json` | 앱 설정. 단축키와 관련된 것은 `option_as_alt` |
 | `~/.config/herdr-app/AGENTS.md` | 설치된 버전의 공식 설명서. 이 스킬과 다르면 저쪽이 맞다 |
 
-- **키 이름에 `cmd`가 있다.** 보여 줄 때는 `cmd-shift-w` → `Cmd+Shift+W`, `alt-h` → `Option+H`로 적는다.
+- **키 이름에 `cmd`가 있다.** 보여 줄 때는 `cmd-shift-d` → `Cmd+Shift+D`, `alt-h` → `Option+H`로 적는다.
 - **적용 확인(5단계)은 bash로 한다.**
 
   ```bash

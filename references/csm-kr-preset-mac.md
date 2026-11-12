@@ -19,7 +19,7 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 | `ctrl-shift-p` | `app.palette` | `cmd-shift-p` |
 | `ctrl-shift-o` | `pane.split:right` | `cmd-shift-d` |
 | `ctrl-shift-e` | `pane.split:down` | `ctrl-shift-o` 아래 |
-| `ctrl-shift-x` | `pane.close` | `cmd-shift-w` |
+| `ctrl-shift-x` | `pane.close` | `ctrl-shift-e` |
 | `ctrl-shift-z` | `pane.zoom` | `cmd-shift-enter` |
 | `alt-h` | `pane.go:left` | `cmd-alt-down` |
 | `alt-j` | `pane.go:down` | `alt-h` 아래 |
@@ -28,23 +28,22 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 
 넣는 자리는 기능에 영향이 없다. 이 Mac의 파일과 같은 순서로 맞춰 두면 나중에 비교하기 쉬워서 적어 둔다.
 
-## 뺀 키 (1개)
+## 뺀 키 (2개)
 
 | 키 | 기본 동작 |
 |---|---|
 | `cmd-shift-l` | `layout.switch` (레이아웃 전환). Windows에서 `ctrl-shift-l`을 뺀 것과 같은 짝 |
+| `cmd-shift-w` | `pane.close` (창 닫기). 탭을 닫는 `ctrl-shift-w`와 글자가 같아 헷갈려서 뺐다. 창 닫기는 `ctrl-shift-x`만 쓴다 |
 
 ## 닫기 키
 
 닫는 범위가 작은 것부터 큰 것 순서로 `X` → `W` → `Q`다. Windows와 같고, 이 짝은 바꾸지 않는다.
 
-| 키 | 동작 | 닫는 것 | Mac 기본 키 |
+| 키 | 동작 | 닫는 것 | 같은 일을 하는 Mac 키 |
 |---|---|---|---|
-| `ctrl-shift-x` | `pane.close` | 창(pane) 하나 | `cmd-shift-w` |
+| `ctrl-shift-x` | `pane.close` | 창(pane) 하나 | 없음 (`cmd-shift-w`는 뺐다) |
 | `ctrl-shift-w` | `tab.close` | 탭 하나 | `cmd-w` |
 | `ctrl-shift-q` | `space.close` | 스페이스 전체 | 없음 |
-
-`cmd-shift-w`(창 닫기)와 `ctrl-shift-w`(탭 닫기)는 글자가 같은데 닫는 범위가 다르다. 사용자가 헷갈려하면 이 차이를 먼저 말해 준다.
 
 ## 키 말고 같이 맞출 설정
 
@@ -53,7 +52,7 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 ## 반영하는 법
 
 1. 대상 Mac의 `keys.json`을 읽고, 위 키가 이미 다른 동작에 묶여 있는지 본다. 묶여 있으면 사용자에게 묻는다.
-2. 추가 17줄을 넣고 `cmd-shift-l` 줄을 뺀다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다.
+2. 추가 17줄을 넣고 `cmd-shift-l`, `cmd-shift-w` 두 줄을 뺀다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다.
 3. `settings.json`의 `option_as_alt`를 `"on"`으로 둔다.
 4. 적용을 확인한다.
 
