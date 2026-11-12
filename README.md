@@ -23,7 +23,7 @@ herdr-shortcuts/
 
 ## 설치
 
-Claude Code 스킬 폴더에 그대로 둡니다. 비공개 저장소라 접근 권한이 있어야 받을 수 있습니다.
+Claude Code 스킬 폴더에 그대로 둡니다.
 
 ```bash
 git clone https://github.com/csm-kr/herdr-shortcuts.git ~/.claude/skills/herdr-shortcuts
