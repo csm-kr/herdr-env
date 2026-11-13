@@ -3,8 +3,9 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Install   # 빠진 도구까지 winget/npm으로 설치
 # 하는 일
 #   1. mods\file-viewer, mods\path-picker를 ~\.config\herdr-app\mods 로 복사한다(같은 파일은 덮어쓴다).
-#   2. file-viewer\install.ps1을 돌린다: herdrview: 링크 등록, 단축키 Ctrl+Shift+G·Y, 도구 확인.
-#   3. skills\herdr-shortcuts를 ~\.claude\skills 로 복사한다.
+#   2. keys.ps1로 내 단축키(Ctrl+Shift+↑↓ 스페이스 전환, Q 스페이스 닫기, G·Y 모드, L 빼기)를 맞춘다.
+#   3. file-viewer\install.ps1을 돌린다: herdrview: 링크 등록, 단축키 Ctrl+Shift+G·Y, 도구 확인.
+#   4. skills\herdr-shortcuts를 ~\.claude\skills 로 복사한다.
 param([switch]$Install)
 $ErrorActionPreference = 'Stop'
 
@@ -15,6 +16,7 @@ foreach ($m in 'file-viewer', 'path-picker') {
   Write-Host "모드 복사: $m → $mods\$m"
 }
 
+& (Join-Path $PSScriptRoot 'keys.ps1')
 & (Join-Path $mods 'file-viewer\install.ps1') -Install:$Install
 
 $skills = Join-Path $env:USERPROFILE '.claude\skills'

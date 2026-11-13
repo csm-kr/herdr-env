@@ -18,7 +18,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 ```
 
 - 모드 두 개를 `~\.config\herdr-app\mods`로, 스킬을 `~\.claude\skills`로 복사한다.
-- `herdrview:` 링크를 등록하고, 단축키 Ctrl+Shift+G·Y를 넣는다.
+- `keys.ps1`로 내 단축키를 맞춘다(Ctrl+Shift+↑↓·Q·G·Y 넣기, L 빼기). `herdrview:` 링크를 등록한다.
 - 빠진 도구(ffmpeg, mpv, node, git, ssh, mermaid-cli)를 winget·npm으로 설치한다. winget이 동의나 권한 창을 띄우면 사용자에게 허용해 달라고 한다.
 - 단축키가 다른 동작에 이미 쓰이고 있다는 노란 줄이 나오면, 무엇과 겹치는지 사용자에게 알리고 다른 키를 고르게 한다(`herdr-shortcuts` 스킬 절차).
 

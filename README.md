@@ -18,7 +18,7 @@ herdr-env/
 
    > https://github.com/csm-kr/herdr-env 를 받아서 저장소의 CLAUDE.md 순서대로 Herdr 환경을 설치해줘.
 
-3. Claude Code가 저장소를 받고, `install.ps1 -Install`로 모드·단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
+3. Claude Code가 저장소를 받고, `install.ps1 -Install`로 모드·내 단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
 4. 끝나면 Herdr 터미널에서 **Ctrl+Shift+G**(미리보기 탭), **Ctrl+Shift+Y**(경로 열기)를 눌러 봅니다. 단축키 스킬은 Claude Code를 새로 열면 잡힙니다.
 
 업데이트도 같은 방법으로 합니다: "herdr-env를 최신으로 받아서 다시 설치해줘".
@@ -53,7 +53,8 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 `install.ps1`이 모드 두 개를 `~\.config\herdr-app\mods`로, 스킬을 `~\.claude\skills`로 복사하고 `mods\file-viewer\install.ps1`(링크 등록·단축키·도구)을 돌립니다. 여러 번 돌려도 되고, 업데이트할 때는 `git pull` 뒤 다시 돌리면 됩니다.
 
 - `install.ps1`은 ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`), mpv(`shinchiro.mpv`), node, git, ssh, mermaid-cli를 확인하고 `-Install`이면 winget·npm으로 설치합니다.
-- `install.ps1`은 다른 동작에 이미 쓰이는 단축키는 덮어쓰지 않고 알려 줍니다.
+- 단축키는 `keys.ps1`이 맞춥니다. Ctrl+Shift+↑/↓(스페이스 전환), Ctrl+Shift+Q(스페이스 닫기), Ctrl+Shift+G·Y(모드)를 넣고 Ctrl+Shift+L(레이아웃 전환)을 뺍니다. `keys.json`을 통째로 덮지 않고 그 줄만 고치며, 다른 동작에 이미 쓰이는 키는 그대로 두고 알려 줍니다.
+- Herdr 설정(`settings.json`)과 레이아웃은 기본값을 쓰므로 저장소에 넣지 않았습니다.
 - 다른 머신의 영상·그림은 ffmpeg·mpv가 sftp로 읽습니다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 합니다.
 - `gpui-kit.d.ts`(모드 API 설명)는 Herdr가 모드 폴더에 만들어 주므로 저장소에 넣지 않았습니다.
 
