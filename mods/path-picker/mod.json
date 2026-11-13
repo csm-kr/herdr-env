@@ -1,0 +1,5 @@
+{
+  "place": "none",
+  "title": "경로 열기",
+  "overlay": { "kind": "dialog", "width": 760, "height": 520 }
+}

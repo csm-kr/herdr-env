@@ -8,6 +8,8 @@ herdr-app 0.1.15, Windows, 2026-11-12 기준. 모두 `keys.json`의 `global` 섹
 | `ctrl-shift-down` | `space.next` | 추가. 아래(다음) 스페이스로 전환 |
 | `ctrl-shift-q` | `space.close` | 추가. 현재 스페이스 닫기 (확인 창이 뜬다) |
 | `ctrl-shift-l` | 없음 | 삭제. 기본값은 `layout.switch`(레이아웃 전환) |
+| `ctrl-shift-g` | `mod.open:file-viewer` | 추가. 미리보기 탭 열기/돌아가기 (이 저장소의 `mods/file-viewer` 필요) |
+| `ctrl-shift-y` | `mod.open:path-picker` | 추가. 터미널 화면의 경로 골라 열기 (`mods/path-picker` 필요) |
 
 기본값의 `ctrl-shift-pageup` / `ctrl-shift-pagedown`(`space.prev` / `space.next`)은 그대로 둔다.
 
@@ -24,7 +26,7 @@ herdr-app 0.1.15, Windows, 2026-11-12 기준. 모두 `keys.json`의 `global` 섹
 ## 반영하는 법
 
 1. 대상 PC의 `keys.json`을 읽고, 위 키가 이미 다른 동작에 묶여 있는지 본다. 묶여 있으면 사용자에게 묻는다.
-2. 추가 세 줄을 넣고 `ctrl-shift-l` 줄을 뺀다.
+2. 추가 줄을 넣고 `ctrl-shift-l` 줄을 뺀다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 PC에서만 넣는다(`mods/file-viewer/install.ps1`이 대신 넣어 준다).
 3. `keys.error`가 없고 `herdr-app status`의 `errors`가 비어 있는지 확인한다.
 
 설정을 더 바꾸고 저장소에도 남겨 달라는 요청을 받으면 이 표를 고쳐 커밋한다.
