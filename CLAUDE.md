@@ -6,7 +6,7 @@
 - 이미 받아 둔 곳이 있으면(`~/herdr-env` 등) 그 폴더에서 `git pull`, 없으면 `git clone https://github.com/csm-kr/herdr-env.git ~/herdr-env`.
 
 ## 2. 먼저 확인
-- **OS**: 모드 설치(`install.ps1`)는 Windows 전용이다. macOS면 `skills/herdr-shortcuts`만 `~/.claude/skills/`로 복사하고, 모드는 아직 Windows만 된다고 알린다.
+- **OS**: `install.ps1`과 모드(file-viewer, path-picker)는 Windows 전용이다. macOS(`uname`이 `Darwin`)면 3·4 대신 아래 "macOS" 절을 따른다.
 - **Herdr 설정 폴더**: `~/.config/herdr-app`이 없으면 Herdr를 한 번 실행해 달라고 하고 멈춘다.
 - **덮어쓸 파일**: `~/.config/herdr-app/mods/file-viewer`, `path-picker`가 이미 있으면 저장소 것과 비교한다(`gpui-kit.d.ts`는 빼고). 사용자가 직접 고친 흔적이 있으면 덮어쓰기 전에 묻는다.
 
@@ -30,6 +30,16 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 - 레지스트리 `HKCU:\Software\Classes\herdrview\shell\open\command`가 설치된 `herdr-link.js`를 가리켜야 한다.
 
 Herdr 안에서 탭을 열거나 단축키를 대신 눌러 보지 않는다. `tab.new` 같은 명령은 사용자가 보던 화면을 빼앗는다. 마지막에 사용자에게 Herdr 터미널에서 Ctrl+Shift+G와 Ctrl+Shift+Y를 눌러 봐 달라고 한다.
+
+## macOS
+1. `cp -R skills/herdr-shortcuts ~/.claude/skills/`로 스킬을 복사한다.
+2. `skills/herdr-shortcuts/SKILL.md`의 절차와 `references/csm-kr-preset-mac.md`의 목록대로 `~/.config/herdr-app/keys.json`을 맞춘다.
+   - 키 17개를 넣고, `cmd-shift-l`과 `cmd-shift-w`를 뺀다.
+   - 파일을 통째로 덮지 않고 그 줄만 고친다.
+   - 이미 다른 동작에 묶인 키는 사용자에게 묻는다.
+3. `~/.config/herdr-app/settings.json`의 `option_as_alt`를 `"on"`으로 둔다. 다른 설정은 건드리지 않는다.
+4. 2초 기다린 뒤 `keys.error`가 없는지, `herdr-app status`의 `errors`가 비었는지 확인한다.
+5. 모드(미리보기·경로 열기)는 아직 Windows에서만 된다고 알린다.
 
 ## 5. 다른 머신(선택)
 `hc machine`으로 연결한 리눅스 머신의 영상·그림은 이 PC의 ffmpeg·mpv가 sftp로 읽는다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 한다. 사용자가 원격 파일도 볼 거라면 `ssh -o BatchMode=yes <머신> true`로 확인하고, 안 되면 키 설정을 안내한다.

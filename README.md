@@ -23,6 +23,13 @@ herdr-env/
 
 업데이트도 같은 방법으로 합니다: "herdr-env를 최신으로 받아서 다시 설치해줘".
 
+**Mac**에서도 같은 문장을 쓰면 됩니다. Mac에서는 Claude Code가 이렇게 합니다.
+- 단축키 스킬을 설치합니다.
+- [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Alt 키 17개를 넣고 Cmd+Shift+L·W를 뺍니다.
+- `option_as_alt`를 켭니다.
+
+미리보기·경로 열기 모드는 아직 Windows에서만 됩니다.
+
 Claude Code가 하는 순서는 [CLAUDE.md](CLAUDE.md)에 적어 두었습니다.
 
 ## file-viewer
