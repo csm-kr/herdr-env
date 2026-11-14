@@ -6,7 +6,7 @@
 - 이미 받아 둔 곳이 있으면(`~/herdr-env` 등) 그 폴더에서 `git pull`, 없으면 `git clone https://github.com/csm-kr/herdr-env.git ~/herdr-env`.
 
 ## 2. 먼저 확인
-- **OS**: `install.ps1`과 모드(file-viewer, path-picker)는 Windows 전용이다. macOS(`uname`이 `Darwin`)면 3·4 대신 아래 "macOS" 절을 따른다.
+- **OS**: `install.ps1`은 Windows 전용이다. macOS(`uname`이 `Darwin`)면 3·4 대신 아래 "macOS" 절을 따른다(`install.sh`).
 - **Herdr 설정 폴더**: `~/.config/herdr-app`이 없으면 Herdr를 한 번 실행해 달라고 하고 멈춘다.
 - **덮어쓸 파일**: `~/.config/herdr-app/mods/file-viewer`, `path-picker`가 이미 있으면 저장소 것과 비교한다(`gpui-kit.d.ts`는 빼고). 사용자가 직접 고친 흔적이 있으면 덮어쓰기 전에 묻는다.
 
@@ -32,14 +32,18 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 Herdr 안에서 탭을 열거나 단축키를 대신 눌러 보지 않는다. `tab.new` 같은 명령은 사용자가 보던 화면을 빼앗는다. 마지막에 사용자에게 Herdr 터미널에서 Ctrl+Shift+G와 Ctrl+Shift+Y를 눌러 봐 달라고 한다.
 
 ## macOS
-1. `cp -R skills/herdr-shortcuts ~/.claude/skills/`로 스킬을 복사한다.
-2. `skills/herdr-shortcuts/SKILL.md`의 절차와 `references/csm-kr-preset-mac.md`의 목록대로 `~/.config/herdr-app/keys.json`을 맞춘다.
-   - 키 17개를 넣고, `cmd-shift-l`과 `cmd-shift-w`를 뺀다.
-   - 파일을 통째로 덮지 않고 그 줄만 고친다.
-   - 이미 다른 동작에 묶인 키는 사용자에게 묻는다.
-3. `~/.config/herdr-app/settings.json`의 `option_as_alt`를 `"on"`으로 둔다. 다른 설정은 건드리지 않는다.
-4. 2초 기다린 뒤 `keys.error`가 없는지, `herdr-app status`의 `errors`가 비었는지 확인한다.
-5. 모드(미리보기·경로 열기)는 아직 Windows에서만 된다고 알린다.
+1. 저장소 폴더에서 `./install.sh --install`을 돌린다.
+   - 모드 두 개를 `~/.config/herdr-app/mods`로, 스킬을 `~/.claude/skills`로 복사한다.
+   - 빠진 도구(ffmpeg, mpv, node, mermaid-cli, Poppler)를 brew·npm으로 설치한다. git·ssh·scp가 없으면 `xcode-select --install`을 안내만 하니 사용자에게 알린다.
+   - `keys-mac.mjs`로 단축키를 맞춘다(`references/csm-kr-preset-mac.md`의 키 19개 넣기, `cmd-shift-l`과 `cmd-shift-w` 빼기). 파일을 통째로 덮지 않고 그 줄만 고친다.
+   - `settings.json`의 `option_as_alt`를 `"on"`으로 둔다. 다른 설정은 건드리지 않는다.
+2. 단축키가 다른 동작에 이미 쓰이고 있다는 노란 줄이 나오면, 무엇과 겹치는지 사용자에게 알리고 다른 키를 고르게 한다(`herdr-shortcuts` 스킬 절차).
+3. 확인한다.
+   - 2초 기다린 뒤 `keys.error`가 없어야 하고, `herdr-app status`의 `errors`가 비어 있어야 한다.
+   - `~/.config/herdr-app/mods/file-viewer`와 `path-picker`에서 `herdr-app check .`가 통과해야 한다.
+   - 저장소의 `mods/file-viewer`, `mods/path-picker`, 맨 위 폴더에서 `node --test test/*.mjs`가 모두 통과해야 한다.
+4. Mac에서 아직 안 되는 것을 알린다: 영상은 장면 자리에 붙지 않고 보통 mpv 창으로 뜬다. `herdrview:` 링크는 등록하지 않는다.
+5. Windows와 같이 Herdr 안에서 탭을 열거나 단축키를 대신 누르지 않는다. 마지막에 사용자에게 Ctrl+Shift+G와 Ctrl+Shift+Y를 눌러 봐 달라고 한다.
 
 ## 5. 다른 머신(선택)
 `hc machine`으로 연결한 리눅스 머신의 영상·그림은 이 PC의 ffmpeg·mpv가 sftp로 읽는다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 한다. 사용자가 원격 파일도 볼 거라면 `ssh -o BatchMode=yes <머신> true`로 확인하고, 안 되면 키 설정을 안내한다.
@@ -50,4 +54,5 @@ Herdr 안에서 탭을 열거나 단축키를 대신 눌러 보지 않는다. `t
 ## 저장소를 고칠 때
 - 모드의 순수 로직은 `kind.js`에 두고 테스트를 먼저 쓴다(`node --test test/*.mjs`). 화면과 프로세스 처리는 `main.js`에 둔다.
 - 고친 뒤 `herdr-app check .`로 검사한다.
+- OS마다 다른 일(PowerShell·sh, 경로 표기, 창 띄우기)은 `main.js`의 `WIN()`으로 가른다. 한쪽 OS만 고칠 때 다른 쪽 가지는 건드리지 않는다.
 - 이 저장소는 공개다. 테스트나 문서에 실제 IP, 사용자 이름, 프로젝트 이름을 넣지 않고 예시 값(`192.168.0.10`, `/home/me`)을 쓴다.

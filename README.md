@@ -18,17 +18,18 @@ herdr-env/
 
    > https://github.com/csm-kr/herdr-env 를 받아서 저장소의 CLAUDE.md 순서대로 Herdr 환경을 설치해줘.
 
-3. Claude Code가 저장소를 받고, `install.ps1 -Install`로 모드·내 단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
+3. Claude Code가 저장소를 받고, Windows는 `install.ps1 -Install`, Mac은 `install.sh --install`로 모드·내 단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
 4. 끝나면 Herdr 터미널에서 **Ctrl+Shift+G**(미리보기 탭), **Ctrl+Shift+Y**(경로 열기)를 눌러 봅니다. 단축키 스킬은 Claude Code를 새로 열면 잡힙니다.
 
 업데이트도 같은 방법으로 합니다: "herdr-env를 최신으로 받아서 다시 설치해줘".
 
-**Mac**에서도 같은 문장을 쓰면 됩니다. Mac에서는 Claude Code가 이렇게 합니다.
-- 단축키 스킬을 설치합니다.
-- [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Alt 키 17개를 넣고 Cmd+Shift+L·W를 뺍니다.
+**Mac**에서도 같은 문장을 쓰면 됩니다. Mac에서는 `install.sh`가 이렇게 합니다.
+- 모드 두 개(미리보기, 경로 열기)와 단축키 스킬을 설치합니다.
+- [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Option 키 19개를 넣고 Cmd+Shift+L·W를 뺍니다.
 - `option_as_alt`를 켭니다.
+- 빠진 도구(ffmpeg, mpv, node, mermaid-cli, Poppler)를 brew·npm으로 설치합니다.
 
-미리보기·경로 열기 모드는 아직 Windows에서만 됩니다.
+Mac에서 아직 안 되는 것은 두 가지입니다. 영상은 장면 자리에 붙지 않고 보통 mpv 창으로 뜨고, `herdrview://` 링크는 등록하지 않습니다.
 
 Claude Code가 하는 순서는 [CLAUDE.md](CLAUDE.md)에 적어 두었습니다.
 
@@ -39,7 +40,7 @@ Herdr 안에서 VS Code를 열지 않고 파일을 바로 보는 미리보기 �
 - 그림(확대·축소, 움직이는 GIF·WebP), 영상(장면 자리에 붙는 mpv 창), 소리(재생 막대), 마크다운, Mermaid, HTML(Chrome·Edge로 그린 실제 모습), CSV 표, PDF(쪽 그림·확대·글 찾기), 코드 편집·저장
 - Ctrl+F 찾기, 로그 따라가기, git 변경(diff), 경로 복사, 프로젝트 루트 오가기, 트리 너비 끌기
 - 트리 우클릭: 다운로드 폴더로 받기(다른 머신은 scp), 다운로드 폴더 열기, 경로 복사, 기본 앱으로 열기
-- `herdrview://` 링크를 Ctrl+클릭하면 그 파일을 그 시각으로 엽니다.
+- `herdrview://` 링크를 Ctrl+클릭하면 그 파일을 그 시각으로 엽니다(Windows).
 
 자세한 내용은 [mods/file-viewer/README.md](mods/file-viewer/README.md)를 봅니다.
 
@@ -65,11 +66,28 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 - 다른 머신의 영상·그림은 ffmpeg·mpv가 sftp로 읽습니다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 합니다.
 - `gpui-kit.d.ts`(모드 API 설명)는 Herdr가 모드 폴더에 만들어 주므로 저장소에 넣지 않았습니다.
 
+## 직접 설치 (macOS)
+
+Herdr를 한 번 실행해 둔 뒤, 터미널에서:
+
+```bash
+git clone https://github.com/csm-kr/herdr-env.git
+cd herdr-env
+./install.sh --install
+```
+
+`install.sh`가 모드 두 개를 `~/.config/herdr-app/mods`로, 스킬을 `~/.claude/skills`로 복사하고 `keys-mac.mjs`로 단축키와 `option_as_alt`를 맞춥니다. 여러 번 돌려도 되고, 업데이트할 때는 `git pull` 뒤 다시 돌리면 됩니다.
+
+- 도구는 ffmpeg·ffprobe·ffplay(`brew install ffmpeg`), mpv, Poppler, node, mermaid-cli를 확인하고 `--install`이면 brew·npm으로 설치합니다. git·ssh·scp가 없으면 `xcode-select --install`을 안내만 합니다.
+- HTML·Mermaid·움직이는 그림은 그 Mac의 Chrome·Edge·Chromium으로 그립니다.
+- 다운로드 폴더로 처음 받을 때 macOS가 Herdr에 다운로드 폴더 접근을 허용할지 물을 수 있습니다.
+
 ## 개발
 
 ```bash
 cd mods/file-viewer && node --test test/*.mjs   # 순수 로직(kind.js) 테스트
 herdr-app check .                              # 모드 검사
+node --test test/*.mjs                         # 저장소 맨 위에서: keys-mac.mjs 테스트
 ```
 
-확인한 환경: herdr-app 0.1.15, Windows 11. 스킬은 macOS도 지원합니다.
+확인한 환경: herdr-app 0.1.15, Windows 11과 macOS(Apple Silicon).

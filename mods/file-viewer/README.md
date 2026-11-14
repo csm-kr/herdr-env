@@ -28,6 +28,15 @@ Herdr 안에서 파일을 바로 보는 미리보기 탭. 왼쪽은 폴더 트�
 - Herdr는 DirectComposition으로 그려서 자식 창(SetParent)으로 넣으면 화면 아래에 깔릴 수 있어 딸린 창을 쓴다.
 - 명령으로 틀 때(`herdr-app do file-viewer.play`)는 장면 자리를 몰라 화면 가운데 보통 mpv 창으로 튼다. A/B 비교는 ffplay.
 
+## macOS에서 다른 점
+- 설치는 저장소 맨 위의 `./install.sh --install`로 한다(모드 복사, 단축키, 도구).
+- PowerShell 대신 `sh`·`node`·`open`·`kill`을 쓴다. `main.js`의 `WIN()`으로 가른다.
+- 영상은 장면 자리에 붙지 않고 화면 가운데 보통 mpv 창으로 뜬다(붙이기 도우미 `mpv-dock.ps1`이 Windows 전용). mpv가 없으면 ffplay 창.
+- `herdrview:` 링크 등록은 아직 없다. 경로 복사 → Ctrl+Shift+G와 Ctrl+Shift+Y는 된다.
+- 확대·축소는 Ctrl+휠과 Cmd+휠 모두 된다. 저장은 Cmd+S, 찾기는 Cmd+F도 된다.
+- 다운로드 폴더는 `~/Downloads`다. 처음 받을 때 macOS가 폴더 접근을 허용할지 물을 수 있다.
+- 필요한 도구: `brew install ffmpeg mpv poppler node`, `PUPPETEER_SKIP_DOWNLOAD=1 npm i -g @mermaid-js/mermaid-cli`.
+
 ## 새 PC에서 준비 (Windows)
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 -Install

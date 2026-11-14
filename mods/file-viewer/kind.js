@@ -275,6 +275,11 @@ export function winPath(path) {
   return path.replace(/\//g, "\\");
 }
 
+// 이 PC의 프로그램에 넘길 경로 표기: Windows만 \ 로 바꾸고, macOS·리눅스는 그대로 둔다.
+export function localPath(path, platform) {
+  return platform === "windows" ? winPath(path) : path;
+}
+
 // 그림(w×h)을 영역 box 안에 비율을 지켜 맞춘 크기. 영역보다 작은 그림은 키우지 않는다.
 // 크기를 모르면(0) 영역의 짧은 변으로 정사각형을 잡는다.
 export function fit(box, w, h) {
@@ -325,6 +330,12 @@ export function ffplayArgs(path, at, video) {
   if (p.includes('"')) throw new Error('파일 이름에 큰따옴표(")가 있어 재생할 수 없습니다');
   const view = video ? `-window_title "${p.split(/[\\/]/).pop()}" -y 720` : "-nodisp";
   return `-autoexit -loglevel quiet -ss ${at} ${view} -i "${p}"`;
+}
+
+// macOS용 ffplay 인자. 셸을 거치지 않고 배열로 넘겨서, 이름에 큰따옴표나 공백이 있어도 경로 한 칸에 그대로 들어간다.
+export function ffplayArgv(path, at, video) {
+  return ["-autoexit", "-loglevel", "quiet", "-ss", String(at),
+    ...(video ? ["-window_title", path.split("/").pop(), "-y", "720"] : ["-nodisp"]), "-i", path];
 }
 
 // `ssh -G <대상>` 출력에서 실제로 붙을 사용자, 호스트, 포트를 읽는다.

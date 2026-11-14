@@ -4,7 +4,7 @@ herdr-app 0.1.15, macOS, 2026-11-12 기준. 앱에 들어 있는 Mac 기본 `key
 
 Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거의 그대로 두고, Windows에서 쓰는 `ctrl-shift` 키와 `alt` 키를 같은 동작으로 얹는다. 그래서 두 OS에서 같은 손가락으로 같은 일을 한다.
 
-## 추가한 키 (17개)
+## 추가한 키 (19개)
 
 | 키 | 동작 | 넣는 자리 (같은 동작의 기본 키 바로 아래) |
 |---|---|---|
@@ -25,6 +25,8 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 | `alt-j` | `pane.go:down` | `alt-h` 아래 |
 | `alt-k` | `pane.go:up` | `alt-j` 아래 |
 | `alt-l` | `pane.go:right` | `alt-k` 아래 |
+| `ctrl-shift-g` | `mod.open:file-viewer` | 미리보기 탭 열기/돌아가기 (이 저장소의 `mods/file-viewer` 필요) |
+| `ctrl-shift-y` | `mod.open:path-picker` | 터미널 화면의 경로 골라 열기 (`mods/path-picker` 필요) |
 
 넣는 자리는 기능에 영향이 없다. 이 Mac의 파일과 같은 순서로 맞춰 두면 나중에 비교하기 쉬워서 적어 둔다.
 
@@ -51,8 +53,10 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 
 ## 반영하는 법
 
+저장소 맨 위의 `keys-mac.mjs`가 아래 일을 대신 한다(`install.sh`가 부른다). 이 표를 바꾸면 `keys-mac.mjs`의 목록도 같이 바꾼다.
+
 1. 대상 Mac의 `keys.json`을 읽고, 위 키가 이미 다른 동작에 묶여 있는지 본다. 묶여 있으면 사용자에게 묻는다.
-2. 추가 17줄을 넣고 `cmd-shift-l`, `cmd-shift-w` 두 줄을 뺀다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다.
+2. 추가 19줄을 넣고 `cmd-shift-l`, `cmd-shift-w` 두 줄을 뺀다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 Mac에서만 넣는다.
 3. `settings.json`의 `option_as_alt`를 `"on"`으로 둔다.
 4. 적용을 확인한다.
 

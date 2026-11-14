@@ -1,6 +1,7 @@
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
 // 기본 files 모드의 복제본. 이미지·영상 미리보기, 음악 재생, 기본 앱으로 열기를 더했고, 창(pane)으로도 열 수 있다.
-// 다른 머신의 영상·소리는 sftp로 바로 읽고, 그 밖의 파일은 scp로 이 PC에 가져와서 보여 준다. 미리보기와 재생은 이 PC가 Windows일 때만 된다.
+// 다른 머신의 영상·소리는 sftp로 바로 읽고, 그 밖의 파일은 scp로 이 PC에 가져와서 보여 준다. 미리보기와 재생은 이 PC가 Windows나 macOS일 때 된다.
+// Windows는 PowerShell로, macOS는 sh·node·open으로 같은 일을 한다(WIN()으로 가른다).
 // props: { folder?: 고정해서 볼 폴더, on?: 그 폴더가 있는 머신, file?: 처음에 열 파일(폴더 기준 상대 경로),
 //          t?: 그 파일을 틀 시작 시각(초), b?: A/B로 같이 비교할 다른 파일(같은 머신의 절대 경로) }
 // 단축키는 mod.open:file-viewer 로 건다. 그때는 오버레이로 잠깐 불려서 현재 탭의 뷰어 창을 켜거나 끈다.
@@ -10,7 +11,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, winPath, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey } from "./kind.js";
+import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -29,6 +30,36 @@ function location(last) {
   return { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id, tab: f?.tab };
 }
 
+const WIN = () => window()?.platform === "windows", MAC = () => window()?.platform === "macos";
+// 이 PC의 프로그램에 넘길 경로: Windows만 \ 로 바꾼다.
+const osPath = path => localPath(path, window()?.platform);
+// macOS: 프로그램을 이 모드와 떨어뜨려 띄우고 프로세스 번호를 돌려받는다. 출력을 버려야 exec가 기다리지 않고 바로 돌아온다.
+async function detach(cmd, args) {
+  const r = await exec("sh", ["-c", 'nohup "$@" >/dev/null 2>&1 & echo $!', "sh", cmd, ...args]);
+  if (r.code !== 0 || !r.stdout.trim()) throw new Error(r.stderr || `${cmd}를 띄우지 못했습니다`);
+  return r.stdout.trim();
+}
+// macOS: 이 PC 파일의 수정 시각(초)과 크기. 캐시 이름에 넣어 파일이 바뀌면 새로 만들게 한다.
+async function statLocal(path) {
+  const r = await exec("node", ["-e", "const s=require('fs').statSync(process.argv[1]);process.stdout.write(Math.floor(s.mtimeMs/1000)+' '+s.size)", path]).catch(() => null);
+  if (r?.code !== 0) return null;
+  const [mtime, size] = r.stdout.split(" ").map(Number);
+  return { mtime, size };
+}
+// macOS: 그림을 캐시로 복사하고 "이름|너비|높이"를 돌려준다(Windows의 cacheImage와 같은 일). 홈 밖의 파일과 svg가 이 길로 온다.
+async function cacheImageMac(path) {
+  const dir = `${appHome()}/${CACHE}`, e = await statLocal(path);
+  if (!e) throw new Error("그림을 읽지 못했습니다");
+  const dot = path.lastIndexOf("."), ext = dot > path.lastIndexOf("/") ? path.slice(dot).toLowerCase() : "";
+  const name = `${remoteName("", path).replace(/\.[^.]*$/, "")}-${e.mtime}-${e.size}${ext}`;
+  await fs.mkdir(dir, { recursive: true });
+  if (!(await fs.exists(`${dir}/${name}`))) {
+    const r = await exec("node", ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", path, `${dir}/${name}`]);
+    if (r.code !== 0) throw new Error(r.stderr || "copy failed");
+  }
+  const { w, h } = imageSize(await fs.readFile(`${dir}/${name}`));
+  return `${name}|${w}|${h}`;
+}
 async function powershell(script, ...args) {
   const r = await exec("powershell", ["-NoProfile", "-Command", "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); & { " + script + " } " + args.map(psQuote).join(" ")], { timeout: 600000 });
   if (r.code !== 0) throw new Error(r.stderr || "PowerShell failed");
@@ -38,21 +69,28 @@ async function powershell(script, ...args) {
 // 너비와 높이는 System.Drawing이 읽는 형식만 알 수 있고, 모르면(svg, webp) 0이다.
 // 이름에 수정 시각을 넣어 파일이 바뀌면 새로 복사되고, 복사한 지 하루 지난 캐시는 지운다.
 const CACHE = "cache/file-viewer", NAME = "file-viewer";
-const cacheDir = () => winPath(`${appHome()}/${CACHE}`);
-const cacheImage = path => powershell("param($src, $dir) $ErrorActionPreference = 'Stop'; $f = Get-Item -LiteralPath $src; New-Item -ItemType Directory -Force -Path $dir | Out-Null; Get-ChildItem -LiteralPath $dir -File -Recurse | Where-Object CreationTime -lt (Get-Date).AddDays(-1) | Remove-Item -Force; $name = '{0:x8}-{1:x}{2}' -f $f.FullName.ToLower().GetHashCode(), $f.LastWriteTimeUtc.Ticks, $f.Extension.ToLower(); $dst = Join-Path $dir $name; if (-not (Test-Path -LiteralPath $dst)) { Copy-Item -LiteralPath $f.FullName -Destination $dst }; $w = 0; $h = 0; try { Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile($f.FullName); $w = $img.Width; $h = $img.Height; $img.Dispose() } catch {}; \"$name|$w|$h\"", winPath(path), cacheDir());
-const openFile = path => powershell("param($p) Invoke-Item -LiteralPath $p", winPath(path));
+const cacheDir = () => osPath(`${appHome()}/${CACHE}`);
+const cacheImage = path => !WIN() ? cacheImageMac(path) : powershell("param($src, $dir) $ErrorActionPreference = 'Stop'; $f = Get-Item -LiteralPath $src; New-Item -ItemType Directory -Force -Path $dir | Out-Null; Get-ChildItem -LiteralPath $dir -File -Recurse | Where-Object CreationTime -lt (Get-Date).AddDays(-1) | Remove-Item -Force; $name = '{0:x8}-{1:x}{2}' -f $f.FullName.ToLower().GetHashCode(), $f.LastWriteTimeUtc.Ticks, $f.Extension.ToLower(); $dst = Join-Path $dir $name; if (-not (Test-Path -LiteralPath $dst)) { Copy-Item -LiteralPath $f.FullName -Destination $dst }; $w = 0; $h = 0; try { Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile($f.FullName); $w = $img.Width; $h = $img.Height; $img.Dispose() } catch {}; \"$name|$w|$h\"", osPath(path), cacheDir());
+const openFile = async path => {
+  if (WIN()) return powershell("param($p) Invoke-Item -LiteralPath $p", osPath(path));
+  const r = await exec("open", [path]);
+  if (r.code !== 0) throw new Error(r.stderr || "open failed");
+};
 // 영상은 1초 지점의 한 장면(1초보다 짧으면 첫 장면)을 JPG로 캐시에 두고 "이름|너비|높이"를 돌려받는다. ffmpeg가 있어야 한다.
 // 예전에는 앞 12초를 움직이는 WebP로 만들었는데, 프레임이 많으면 image()가 그리다 렌더가 중단돼(interrupted) 화면에 안 떴다.
 // 영상 전체는 ▶를 누르면 장면 자리의 mpv 창으로 튼다(mpv가 없거나 A/B 비교면 ffplay).
 // src는 이 PC의 경로, 또는 다른 머신 파일의 sftp 주소다. 주소는 Get-Item으로 볼 수 없어서 key(머신·경로·수정 시각)로 이름을 정한다.
-const cacheVideo = (src, key = "") => powershell("param($src, $dir, $key) $ErrorActionPreference = 'Stop'; New-Item -ItemType Directory -Force -Path $dir | Out-Null; if ($key) { $name = $key + '.jpg'; $in = $src } else { $f = Get-Item -LiteralPath $src; $name = '{0:x8}-{1:x}.jpg' -f $f.FullName.ToLower().GetHashCode(), $f.LastWriteTimeUtc.Ticks; $in = $f.FullName }; $dst = Join-Path $dir $name; if (-not (Test-Path -LiteralPath $dst)) { $part = $dst + '.part'; foreach ($at in '1', '0') { ffmpeg -y -v error -ss $at -i $in -frames:v 1 -vf \"scale='min(960,iw)':-2\" -pix_fmt yuvj420p -c:v mjpeg -q:v 3 -f image2 $part; if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $part)) { break } }; if (-not (Test-Path -LiteralPath $part)) { throw 'ffmpeg failed' }; Move-Item -LiteralPath $part -Destination $dst -Force }; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile($dst); \"$name|$($img.Width)|$($img.Height)\"; $img.Dispose()", src.startsWith("sftp://") ? src : winPath(src), cacheDir(), key);
+// macOS는 받아 둔 파일로 cachePoster(ffmpeg)를 한 번 더 부른다.
+const cacheVideo = (src, key = "") => !WIN() ? statLocal(src).then(e => cachePoster(null, src, e)) : powershell("param($src, $dir, $key) $ErrorActionPreference = 'Stop'; New-Item -ItemType Directory -Force -Path $dir | Out-Null; if ($key) { $name = $key + '.jpg'; $in = $src } else { $f = Get-Item -LiteralPath $src; $name = '{0:x8}-{1:x}.jpg' -f $f.FullName.ToLower().GetHashCode(), $f.LastWriteTimeUtc.Ticks; $in = $f.FullName }; $dst = Join-Path $dir $name; if (-not (Test-Path -LiteralPath $dst)) { $part = $dst + '.part'; foreach ($at in '1', '0') { ffmpeg -y -v error -ss $at -i $in -frames:v 1 -vf \"scale='min(960,iw)':-2\" -pix_fmt yuvj420p -c:v mjpeg -q:v 3 -f image2 $part; if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $part)) { break } }; if (-not (Test-Path -LiteralPath $part)) { throw 'ffmpeg failed' }; Move-Item -LiteralPath $part -Destination $dst -Force }; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile($dst); \"$name|$($img.Width)|$($img.Height)\"; $img.Dispose()", src.startsWith("sftp://") ? src : osPath(src), cacheDir(), key);
 // ffplay를 띄우고 프로세스 번호를 돌려받는다. Start-Process로 띄우면 콘솔 창이 같이 뜨고, 숨기면 영상 창까지 숨는다.
 // 그래서 WMI로 콘솔 없이(DETACHED_PROCESS) 띄운다. 이렇게 하면 exec의 출력 파이프도 물려주지 않아 exec가 바로 돌아온다.
 // WMI는 사용자 PATH를 보지 않아 ffplay의 전체 경로를 넘긴다.
-const launchPlayer = (src, at, video) => powershell("param($a) $s = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ CreateFlags = [uint32]8 }; $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '\"' + (Get-Command ffplay -ErrorAction Stop).Source + '\" ' + $a; ProcessStartupInformation = $s }; if ($r.ReturnValue -ne 0) { throw ('ffplay를 띄우지 못했습니다 (' + $r.ReturnValue + ')') }; $r.ProcessId", ffplayArgs(src, at, video));
-const isRunning = async pid => (await exec("tasklist", ["/FI", `PID eq ${pid}`, "/NH", "/FO", "CSV"]).catch(() => null))?.stdout.includes(`"${pid}"`) ?? false;
-const stopPlayer = pid => pid && exec("taskkill", ["/PID", String(pid), "/F"]).catch(() => null);
-const probeDuration = async src => Number((await exec("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "-i", src.startsWith("sftp://") ? src : winPath(src)], { timeout: 60000 }).catch(() => null))?.stdout.trim()) || 0;
+// macOS는 셸 없이 인자 배열로 띄운다(detach).
+const launchPlayer = (src, at, video) => !WIN() ? detach("ffplay", ffplayArgv(src, at, video)) : powershell("param($a) $s = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ CreateFlags = [uint32]8 }; $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '\"' + (Get-Command ffplay -ErrorAction Stop).Source + '\" ' + $a; ProcessStartupInformation = $s }; if ($r.ReturnValue -ne 0) { throw ('ffplay를 띄우지 못했습니다 (' + $r.ReturnValue + ')') }; $r.ProcessId", ffplayArgs(src, at, video));
+const isRunning = async pid => WIN() ? (await exec("tasklist", ["/FI", `PID eq ${pid}`, "/NH", "/FO", "CSV"]).catch(() => null))?.stdout.includes(`"${pid}"`) ?? false
+  : (await exec("kill", ["-0", String(pid)]).catch(() => null))?.code === 0;
+const stopPlayer = pid => pid && (WIN() ? exec("taskkill", ["/PID", String(pid), "/F"]) : exec("kill", [String(pid)])).catch(() => null);
+const probeDuration = async src => Number((await exec("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "-i", src.startsWith("sftp://") ? src : osPath(src)], { timeout: 60000 }).catch(() => null))?.stdout.trim()) || 0;
 async function machineTarget(on) {
   const target = JSON.parse((await hc(["machine", "ls", "--json"])).stdout).machines.find(m => m.name === on)?.target;
   if (!target) throw new Error(`${on}: 머신 목록에 없습니다`);
@@ -61,8 +99,9 @@ async function machineTarget(on) {
 // 다른 머신의 파일은 scp로 이 PC의 캐시에 가져와서 이 PC의 파일처럼 다룬다. ssh 대상 이름으로 닿는 머신만 된다.
 async function fetchRemote(on, path) {
   const target = await machineTarget(on);
-  const dir = `${cacheDir()}\\remote`, local = `${dir}\\${remoteName(on, path)}`;
-  await powershell("param($d) New-Item -ItemType Directory -Force -Path $d | Out-Null", dir);
+  const dir = osPath(`${appHome()}/${CACHE}/remote`), local = osPath(`${appHome()}/${CACHE}/remote/${remoteName(on, path)}`);
+  if (WIN()) await powershell("param($d) New-Item -ItemType Directory -Force -Path $d | Out-Null", dir);
+  else await fs.mkdir(dir, { recursive: true });
   const r = await exec("scp", ["-p", "-q", "-o", "BatchMode=yes", `${target}:${path}`, local], { timeout: 600000 });
   if (r.code !== 0) throw new Error(r.stderr || "scp failed");
   return local;
@@ -70,11 +109,16 @@ async function fetchRemote(on, path) {
 // 트리 우클릭 "다운로드 폴더로 받기": 이 PC의 다운로드 폴더(사용자가 옮겼어도 그 자리)에 받고, 받은 경로를 돌려준다.
 // 같은 이름이 있으면 "이름 (1)"로 비켜 간다. 폴더도 통째로 받는다(다른 머신은 scp -r, 이 PC는 node cpSync).
 async function download(on, path) {
-  const { dir, names } = JSON.parse(await powershell("$d = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path; ConvertTo-Json -Compress @{ dir = $d; names = [string[]]@(Get-ChildItem -LiteralPath $d -Force -Name) }"));
-  const dst = `${dir}\\${freeName(splitPath(path).file, names ?? [])}`;
+  // macOS의 다운로드 폴더는 ~/Downloads다. 처음 받을 때 macOS가 Herdr에 이 폴더 접근을 허용할지 물을 수 있다.
+  const { dir, names } = WIN() ? JSON.parse(await powershell("$d = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path; ConvertTo-Json -Compress @{ dir = $d; names = [string[]]@(Get-ChildItem -LiteralPath $d -Force -Name) }"))
+    : await exec("node", ["-e", "process.stdout.write(JSON.stringify(require('fs').readdirSync(process.argv[1])))", `${home()}/Downloads`]).then(r => {
+      if (r.code !== 0) throw new Error(r.stderr || "다운로드 폴더를 읽지 못했습니다");
+      return { dir: `${home()}/Downloads`, names: JSON.parse(r.stdout) };
+    });
+  const dst = osPath(`${dir}/${freeName(splitPath(path).file, names ?? [])}`);
   const r = on
     ? await exec("scp", ["-r", "-p", "-q", "-o", "BatchMode=yes", `${await machineTarget(on)}:${path}`, dst], { timeout: 3600000 })
-    : await exec("node", ["-e", "require('fs').cpSync(process.argv[1], process.argv[2], { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true })", winPath(path), dst], { timeout: 3600000 });
+    : await exec("node", ["-e", "require('fs').cpSync(process.argv[1], process.argv[2], { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true })", osPath(path), dst], { timeout: 3600000 });
   if (r.code !== 0) throw new Error(r.stderr || "복사 실패");
   return dst;
 }
@@ -93,6 +137,7 @@ async function remoteUrl(on, path) {
 async function existing(candidates, on, strict = false) {
   for (const c of candidates) {
     const r = on ? await exec("test", ["-e", c.path], { on, timeout: 8000 }).catch(() => null)
+      : !WIN() ? await exec("test", ["-e", c.path]).catch(() => null)
       : await exec("powershell", ["-NoProfile", "-Command", "& { param($p) if (-not (Test-Path -LiteralPath $p)) { exit 1 } } " + psQuote(c.path)]).catch(() => null);
     if (r?.code === 0) return c;
   }
@@ -161,7 +206,7 @@ async function findPuppeteer() {
 }
 async function renderHtml(full, entry, width) {
   const dir = `${appHome()}/${CACHE}`, key = htmlShotKey(full, entry?.mtime ?? 0, entry?.size ?? 0, width), meta = `${dir}/${key}.json`;
-  const p = path => window()?.platform === "windows" ? winPath(path) : path;
+  const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
   if (cached && await fs.exists(`${dir}/${key}-0.png`)) { try { return JSON.parse(cached); } catch {} }
   const pp = await findPuppeteer();
@@ -185,7 +230,7 @@ const FIND_REL = "const fs=require('fs'),path=require('path'),[base,rel]=process
 // 폴더인가(다른 머신은 test -d, 이 PC는 node).
 async function isDirectory(path, on) {
   const r = on ? await exec("test", ["-d", path], { on, timeout: 8000 }).catch(() => null)
-    : await exec("node", ["-e", "process.exit(require('fs').statSync(process.argv[1]).isDirectory()?0:1)", winPath(path)]).catch(() => null);
+    : await exec("node", ["-e", "process.exit(require('fs').statSync(process.argv[1]).isDirectory()?0:1)", osPath(path)]).catch(() => null);
   return r?.code === 0;
 }
 
@@ -197,7 +242,7 @@ async function findRelative(base, on, rel) {
     const r = await exec("find", [base, "-maxdepth", "8", "(", "-name", ".git", "-o", "-name", "node_modules", ")", "-prune", "-o", "-path", `*/${rel}`, "-printf", "%T@\t%y\t%p\n"], { on, timeout: 20000 }).catch(() => null);
     return (r?.stdout ?? "").split("\n").filter(Boolean).slice(0, 50).map(l => { const [t, y, ...p] = l.split("\t"); return { path: p.join("\t"), mtime: Number(t), dir: y === "d" }; });
   }
-  const r = await exec("node", ["-e", FIND_REL, winPath(base), rel], { timeout: 20000 }).catch(() => null);
+  const r = await exec("node", ["-e", FIND_REL, osPath(base), rel], { timeout: 20000 }).catch(() => null);
   try { return JSON.parse(r?.stdout || "[]"); } catch { return []; }
 }
 
@@ -213,7 +258,7 @@ async function projectRootOf(cwd, on, prefix) {
 // 다른 머신의 그림은 먼저 이 PC로 가져온다. { w, h, durations, frames: [캐시 경로] }
 async function animFrames(full, entry, on) {
   const dir = `${appHome()}/${CACHE}`, key = `anim-${htmlShotKey(`${on ?? ""}:${full}`, entry?.mtime ?? 0, entry?.size ?? 0, 800).slice(5)}`, meta = `${dir}/${key}.json`;
-  const p = path => window()?.platform === "windows" ? winPath(path) : path;
+  const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
   if (cached && await fs.exists(`${dir}/${key}-000.png`)) { try { return JSON.parse(cached); } catch {} }
   const pp = await findPuppeteer(), browser = await findBrowser();
@@ -389,7 +434,7 @@ async function cacheImageFast(on, path) {
       const dst = `${dir}/${name}`;
       if (!(await fs.exists(dst)) || !(await fs.readFile(dst)).length) {
         // cmd copy는 파일 이름의 &·% 를 명령으로 읽을 수 있어서, 셸 없이 node로 복사한다.
-        const r = await exec("node", ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", winPath(path), winPath(dst)]);
+        const r = await exec("node", ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", osPath(path), osPath(dst)]);
         if (r.code !== 0) throw new Error(r.stderr || "copy failed");
       }
       return `${name}|${w}|${h}|${w}|${h}`;
@@ -397,7 +442,7 @@ async function cacheImageFast(on, path) {
     name += ".png";
   }
   if (!(await fs.exists(`${dir}/${name}`))) {
-    const r = await exec("ffmpeg", ["-y", "-v", "error", "-i", on ? src : winPath(src), "-frames:v", "1", "-vf", "scale='min(1600,iw)':'min(1600,ih)':force_original_aspect_ratio=decrease", "-update", "1", winPath(`${dir}/${name}`)], { timeout: 120000 });
+    const r = await exec("ffmpeg", ["-y", "-v", "error", "-i", on ? src : osPath(src), "-frames:v", "1", "-vf", "scale='min(1600,iw)':'min(1600,ih)':force_original_aspect_ratio=decrease", "-update", "1", osPath(`${dir}/${name}`)], { timeout: 120000 });
     if (r.code !== 0) throw new Error(r.stderr || "ffmpeg failed");
   }
   const out = imageSize(await fs.readFile(`${dir}/${name}`));
@@ -411,7 +456,7 @@ async function ffmpegToCache(name, inputArgs, outputArgs) {
   await fs.mkdir(dir, { recursive: true });
   if (!(await fs.exists(`${dir}/${name}`))) {
     const part = `${dir}/part-${name}`;
-    const r = await exec("ffmpeg", ["-y", "-v", "error", ...inputArgs, ...outputArgs, "-frames:v", "1", "-update", "1", winPath(part)], { timeout: 300000 });
+    const r = await exec("ffmpeg", ["-y", "-v", "error", ...inputArgs, ...outputArgs, "-frames:v", "1", "-update", "1", osPath(part)], { timeout: 300000 });
     if (r.code !== 0 || !(await fs.exists(part))) throw new Error(r.stderr || "ffmpeg failed");
     await finishPart(part, `${dir}/${name}`);
   }
@@ -420,7 +465,7 @@ async function ffmpegToCache(name, inputArgs, outputArgs) {
 // 캐시 정리(하루 한 번): 캐시 폴더(받아 둔 원격 파일 remote/ 포함)에서 3일 넘은 것, 그리고 합이 500MB를 넘으면 오래된 것부터 지운다.
 // 지울 목록은 명령줄 길이 제한을 피해 파일로 넘긴다.
 async function cleanCache() {
-  const dir = winPath(`${appHome()}/${CACHE}`);
+  const dir = osPath(`${appHome()}/${CACHE}`);
   const list = await exec("node", ["-e", "const fs=require('fs'),path=require('path'),o=[];const walk=(d,k)=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory()){if(k<2)walk(p,k+1)}else{const s=fs.statSync(p);o.push({path:p,size:s.size,mtime:s.mtimeMs})}}};walk(process.argv[1],0);process.stdout.write(JSON.stringify(o))", dir]);
   if (list.code !== 0) return;
   const del = cacheToDelete(JSON.parse(list.stdout || "[]"), Date.now());
@@ -428,7 +473,7 @@ async function cleanCache() {
   const file = `${appHome()}/data/file-viewer/clean.json`;
   await fs.mkdir(`${appHome()}/data/file-viewer`, { recursive: true });
   await fs.writeFile(file, JSON.stringify(del));
-  await exec("node", ["-e", "const fs=require('fs');for(const p of JSON.parse(fs.readFileSync(process.argv[1],'utf8')))try{fs.unlinkSync(p)}catch{}", winPath(file)], { timeout: 120000 });
+  await exec("node", ["-e", "const fs=require('fs');for(const p of JSON.parse(fs.readFileSync(process.argv[1],'utf8')))try{fs.unlinkSync(p)}catch{}", osPath(file)], { timeout: 120000 });
 }
 
 // 모드의 console.log는 볼 곳이 없어서, 문제를 data/file-viewer/debug.log에 덧붙인다(끝 50KB만 남긴다).
@@ -444,11 +489,11 @@ async function logDebug(text) {
 // 다 쓴 .part 파일을 제 이름으로 바꾼다. fs.rename이 막혀 있으면 node로.
 async function finishPart(part, final) {
   try { await fs.rename(part, final); }
-  catch { const r = await exec("node", ["-e", "require('fs').renameSync(process.argv[1], process.argv[2])", winPath(part), winPath(final)]); if (r.code !== 0) throw new Error(r.stderr || "rename failed"); }
+  catch { const r = await exec("node", ["-e", "require('fs').renameSync(process.argv[1], process.argv[2])", osPath(part), osPath(final)]); if (r.code !== 0) throw new Error(r.stderr || "rename failed"); }
 }
 // 영상 미리보기 장면: 1초 지점(그보다 짧으면 첫 장면)을 960px 안의 JPG로. "이름|너비|높이".
 async function cachePoster(on, path, entry) {
-  const name = `${await mediaKey(on, path, entry)}.jpg`, src = on ? await remoteUrl(on, path) : winPath(path);
+  const name = `${await mediaKey(on, path, entry)}.jpg`, src = on ? await remoteUrl(on, path) : osPath(path);
   const out = ["-vf", "scale='min(960,iw)':-2", "-pix_fmt", "yuvj420p", "-c:v", "mjpeg", "-q:v", "3", "-f", "image2"];
   const size = await ffmpegToCache(name, ["-ss", "1", "-i", src], out).catch(() => ffmpegToCache(name, ["-i", src], out));
   return `${name}|${size.w}|${size.h}`;
@@ -457,7 +502,7 @@ async function cachePoster(on, path, entry) {
 async function textHead(on, path) {
   if (on) { const r = await exec("head", ["-c", "1000000", path], { on }); if (r.code !== 0) throw new Error(r.stderr); return r.stdout; }
   // 이 PC도 앞 1MB만 읽는다(예전에는 2GB 로그도 통째로 읽은 뒤 잘랐다). 홈 밖(D:\ 등)의 파일도 된다.
-  const r = await exec("node", ["-e", "const fs=require('fs'),fd=fs.openSync(process.argv[1],'r'),b=Buffer.alloc(1000000),n=fs.readSync(fd,b,0,b.length,0);process.stdout.write(b.subarray(0,n).toString('utf8'))", winPath(path)]);
+  const r = await exec("node", ["-e", "const fs=require('fs'),fd=fs.openSync(process.argv[1],'r'),b=Buffer.alloc(1000000),n=fs.readSync(fd,b,0,b.length,0);process.stdout.write(b.subarray(0,n).toString('utf8'))", osPath(path)]);
   if (r.code !== 0) throw new Error(r.stderr || "read failed");
   return r.stdout;
 }
@@ -474,7 +519,7 @@ async function writeRemote(on, path, text) {
 const NODE_LIST = 'const fs=require("fs"),p=process.argv[1],o=[];for(const d of fs.readdirSync(p,{withFileTypes:true})){if(d.name===".git")continue;if(o.length>500)break;let s=null;try{s=fs.statSync(p+"/"+d.name)}catch{}o.push([d.name,s?s.isDirectory():d.isDirectory(),s?s.size:0,s?Math.floor(s.mtimeMs/1000):0])}process.stdout.write(JSON.stringify(o))';
 // 영상·소리의 해상도·fps·코덱·길이·소리 정보. 다른 머신의 파일은 sftp 주소로 앞부분만 읽는다.
 async function probeInfo(src) {
-  const r = await exec("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", "-i", src.startsWith("sftp://") ? src : winPath(src)], { timeout: 60000 }).catch(() => null);
+  const r = await exec("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", "-i", src.startsWith("sftp://") ? src : osPath(src)], { timeout: 60000 }).catch(() => null);
   try { return r?.code === 0 ? JSON.parse(r.stdout) : null; } catch { return null; }
 }
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
@@ -491,11 +536,12 @@ async function directory(path, on) {
     const result = JSON.parse(r.stdout || "[]");
     return Array.isArray(result) ? result : [result];
   };
-  // 이 PC: node 한 번으로 이름·종류·크기·수정 시각까지 (136ms). PowerShell Get-ChildItem은 1.7초가 걸렸다. node가 없으면 PowerShell로.
-  if (!on && window()?.platform === "windows") {
+  // 이 PC: node 한 번으로 이름·종류·크기·수정 시각까지 (136ms). PowerShell Get-ChildItem은 1.7초가 걸렸다.
+  // node가 없으면 Windows는 PowerShell로, macOS는 아래 sh 스크립트로(크기·시각 없이).
+  if (!on) {
     const r = await exec("node", ["-e", NODE_LIST, path]).catch(() => null);
     if (r?.code === 0) return JSON.parse(r.stdout).map(([name, dir, size, mtime]) => ({ name, dir, size, mtime }));
-    return windowsDirectory();
+    if (WIN()) return windowsDirectory();
   }
   // 다른 머신: GNU find 한 번으로 크기·시각까지 (124ms). find가 다르면(macOS) 아래 sh 스크립트로.
   if (on) {
@@ -762,10 +808,12 @@ export default class Files extends View {
     const other = shared(PLAYING);
     if (other?.pid) { stopPlayer(other.pid); setShared(PLAYING, null); }
     const exe = await findMpv();
-    if (!exe) throw new Error("mpv가 없습니다: winget install shinchiro.mpv");
+    if (!exe) throw new Error(`mpv가 없습니다: ${WIN() ? "winget install shinchiro.mpv" : "brew install mpv"}`);
     const title = splitPath(this.file ?? "mpv").file;
     let pid;
-    if (this.anchor) {
+    // macOS: 장면 자리에 붙이는 도우미(mpv-dock.ps1)가 Windows 전용이라, 화면 가운데 보통 mpv 창으로 튼다.
+    if (!WIN()) pid = Number(await detach(exe, mpvWindowArgs({ src, at, title })));
+    else if (this.anchor) {
       // ▶로 튼 영상: 장면 자리에 붙인다. 놓일 자리를 먼저 써 두고, mpv를 화면 밖에 띄운 뒤 도우미가 Herdr에 딸리게 해 옮긴다.
       const ipc = `\\\\.\\pipe\\herdr-mpv-${Date.now()}`;
       await fs.mkdir(`${appHome()}/data/file-viewer`, { recursive: true });
@@ -773,7 +821,7 @@ export default class Files extends View {
       // 자리가 어긋나면 고칠 수 있게, 누른 장면의 bounds와 마우스 좌표로 구한 값, 처음 보낸 자리를 남긴다.
       logDebug(`mpv 붙이기: anchor=${JSON.stringify(this.anchor)} → ${this.dockSent}`);
       pid = Number(await powershell("param($exe, $a, $dock, $file, $ipc) $p = Start-Process -FilePath $exe -ArgumentList $a -PassThru; Start-Process powershell -WindowStyle Hidden -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -MpvPid {1} -DockFile \"{2}\" -Ipc \"{3}\"' -f $dock, $p.Id, $file, $ipc); $p.Id",
-        exe, quoteArgs(mpvDockArgs({ src, at, title, ipc })), winPath(`${appHome()}/mods/file-viewer/mpv-dock.ps1`), winPath(DOCK_FILE()), ipc));
+        exe, quoteArgs(mpvDockArgs({ src, at, title, ipc })), osPath(`${appHome()}/mods/file-viewer/mpv-dock.ps1`), osPath(DOCK_FILE()), ipc));
     } else {
       pid = Number(await powershell("param($exe, $a) (Start-Process -FilePath $exe -ArgumentList $a -PassThru).Id", exe, quoteArgs(mpvWindowArgs({ src, at, title }))));
     }
@@ -868,7 +916,7 @@ export default class Files extends View {
     cx.spawn(async cx => {
       try {
         const r = on ? await exec("tail", ["-c", "262144", full], { on })
-          : await exec("node", ["-e", "const fs=require('fs'),p=process.argv[1],n=262144,fd=fs.openSync(p,'r'),s=fs.fstatSync(fd).size,b=Buffer.alloc(Math.min(n,s));fs.readSync(fd,b,0,b.length,Math.max(0,s-n));process.stdout.write(b.toString('utf8'))", winPath(full)]);
+          : await exec("node", ["-e", "const fs=require('fs'),p=process.argv[1],n=262144,fd=fs.openSync(p,'r'),s=fs.fstatSync(fd).size,b=Buffer.alloc(Math.min(n,s));fs.readSync(fd,b,0,b.length,Math.max(0,s-n));process.stdout.write(b.toString('utf8'))", osPath(full)]);
         if (this.file !== file || !this.following) return;
         if (r.code !== 0) { this.tail = [`끝을 읽지 못했습니다: ${(r.stderr || "").trim() || r.code}`]; return; }
         const lines = tailLines(r.stdout, 1000);
@@ -886,12 +934,12 @@ export default class Files extends View {
     const { folder, file: name } = splitPath(`${this.fileRoot}/${this.file}`), on = this.fileOn, file = this.file;
     this.diff = { lines: null, note: "비교하는 중…" };
     cx.spawn(async cx => {
-      const r = await exec("git", ["-C", on ? folder : winPath(folder), "diff", "--no-color", "HEAD", "--", name], { on }).catch(e => ({ code: -1, stderr: String(e) }));
+      const r = await exec("git", ["-C", on ? folder : osPath(folder), "diff", "--no-color", "HEAD", "--", name], { on }).catch(e => ({ code: -1, stderr: String(e) }));
       if (this.file !== file || !this.diff) return;
       this.diff = r.code !== 0 ? { lines: [], note: /not a git repository|Could not access 'HEAD'/i.test(r.stderr) ? "git 저장소 안의 파일이 아닙니다." : (r.stderr || "git diff 실패").trim() }
         // 큰 diff는 앞 3000줄만 그린다(줄마다 칸을 만들어 느려진다).
         : r.stdout.trim() ? (lines => ({ lines: lines.slice(0, 3000), note: lines.length > 3000 ? `앞 3000줄만 보여 줍니다 (전체 ${lines.length}줄)` : null }))(parseDiff(r.stdout))
-        : await exec("git", ["-C", on ? folder : winPath(folder), "ls-files", "--error-unmatch", "--", name], { on }).then(x => x.code === 0).catch(() => true)
+        : await exec("git", ["-C", on ? folder : osPath(folder), "ls-files", "--error-unmatch", "--", name], { on }).then(x => x.code === 0).catch(() => true)
           ? { lines: [], note: "마지막 커밋과 같습니다 (바뀐 줄 없음)." }
           : { lines: (this.text ?? "").split(/\r?\n/).slice(0, 3000).map(l => ({ kind: "add", text: "+" + l })), note: "새 파일입니다 (아직 커밋 전). 모든 줄이 추가된 줄입니다." };
       cx.notify();
@@ -946,8 +994,8 @@ export default class Files extends View {
     cx.spawn(async cx => {
       try {
         const bin = await findPoppler();
-        if (!bin) throw new Error("PDF를 보려면 Poppler가 필요합니다: winget install oschwartz10612.Poppler");
-        const exe = name => `${bin}/${name}${win ? ".exe" : ""}`, os = p => win ? winPath(p) : p;
+        if (!bin) throw new Error(`PDF를 보려면 Poppler가 필요합니다: ${win ? "winget install oschwartz10612.Poppler" : "brew install poppler"}`);
+        const exe = name => `${bin}/${name}${win ? ".exe" : ""}`, os = p => win ? osPath(p) : p;
         const src = os(on ? await fetchRemote(on, full) : full);
         const info = parsePdfInfo((await exec(exe("pdfinfo"), ["-enc", "UTF-8", src], { timeout: 30000 }).catch(() => null))?.stdout);
         if (!info) throw new Error("PDF를 열 수 없습니다 (깨졌거나 암호가 걸렸을 수 있음)");
@@ -996,7 +1044,7 @@ export default class Files extends View {
   pdfView(w, t, box) {
     const d = this.pdf, width = Math.round(Math.max(40, w - 32) * (this.zoom ?? 1)), next = Math.min(d.pages, d.limit + 20);
     return div().id("files-pdf").flex_1().min_w(0).min_h(0).p(16).overflow_scrollbar()
-      .on_scroll_wheel((e, cx) => { if (!e.modifiers?.control) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); })
+      .on_scroll_wheel((e, cx) => { if (!e.modifiers?.control && !e.modifiers?.platform) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); })
       .child(v_flex().gap(6)
         .children(d.list.map((p, i) => v_flex().gap(4).mb(10)
           .child(div().w(width).h(Math.round(width * p.h / p.w)).border_1().border_color(t.border).child(image(p.path).w(width).h(Math.round(width * p.h / p.w))))
@@ -1202,7 +1250,7 @@ export default class Files extends View {
     if (id === "copy") { const p = copyPath(this.root, path); cx.write_to_clipboard(p); setShared(COPIED, p); }
     else if (id === "root") this.navigate(full, cx);
     // 탐색기로 다운로드 폴더를 연다(사용자가 옮겨 둔 자리도 shell:Downloads가 따라간다). explorer는 성공해도 1을 돌려준다.
-    else if (id === "downloads") exec("explorer", ["shell:Downloads"]).catch(() => null);
+    else if (id === "downloads") (WIN() ? exec("explorer", ["shell:Downloads"]) : exec("open", [`${home()}/Downloads`])).catch(() => null);
     else if (id === "open") cx.spawn(async () => {
       try { await openFile(on ? await fetchRemote(on, full) : full); }
       catch (e) { notify({ title: "파일을 열지 못했습니다", body: String(e?.message ?? e), level: "error" }); }
@@ -1286,7 +1334,7 @@ export default class Files extends View {
       addInfo(mediaSummary(p));
     });
     if (kind === "image" || kind === "video" || kind === "audio") {
-      if (window()?.platform !== "windows") { this.fileError = "이 미리보기는 Windows에서만 됩니다."; cx.notify(); return; }
+      if (!WIN() && !MAC()) { this.fileError = "이 미리보기는 Windows와 macOS에서만 됩니다."; cx.notify(); return; }
       if (kind === "audio") {
         // VS Code·Orca처럼 파형 없이 가운데 재생 막대만 보여 준다(audioView).
         this.audio = path;
@@ -1388,7 +1436,7 @@ export default class Files extends View {
   render(cx) {
     if (props()?.overlay) return div();
     if (this.key() !== this.context?.key) this.refresh(cx);
-    const t = theme(), wide = this.wide, windows = window()?.platform === "windows", kind = this.file ? kindOf(this.file) : null;
+    const t = theme(), wide = this.wide, native = WIN() || MAC(), kind = this.file ? kindOf(this.file) : null;
     const button = (id, label, act) => div().id(id).flex_none().px(8).py(3).rounded(6).border_1().border_color(t.border).text_size(12).cursor_pointer().hover(s => s.bg(t.hover)).on_click((_e, cx) => act(cx)).child(label);
     const tree = () => v_flex().id("files-tree").min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
       .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "목록을 읽는 중…" : this.root ? "파일이 없습니다" : "터미널에서 Ctrl+Shift+G를 누르면 그 폴더가 열립니다"))))
@@ -1419,11 +1467,11 @@ export default class Files extends View {
       : this.audio && box ? this.audioView(t, box.w)
       // 확대한 사진: 실제 배율로 그리고 스크롤로 움직인다. Ctrl+휠로 키우고 줄인다.
       : this.picture && box && !this.picture.clip && this.zoom != null ? div().id("files-zoom").flex_1().min_w(0).min_h(0).overflow_scrollbar()
-        .on_scroll_wheel((e, cx) => { if (!e.modifiers?.control) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); })
+        .on_scroll_wheel((e, cx) => { if (!e.modifiers?.control && !e.modifiers?.platform) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); })
         .child(image(this.anim ? this.anim.frames[this.anim.i] : this.picture.path).w(Math.round(this.picture.w * this.zoom)).h(Math.round(this.picture.h * this.zoom)))
       : this.picture && box ? v_flex().flex_1().min_w(0).h_full().gap(8).items_center().justify_center().overflow_hidden()
-        .when(!this.picture.clip, el => el.id("files-fit").on_scroll_wheel((e, cx) => { if (!e.modifiers?.control) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); }))
-        .map(el => { const size = fit({ w: box.w, h: box.h - (this.picture.clip ? 26 : 0) }, this.picture.w, this.picture.h); if (!this.picture.clip || !windows) return el.child(image(this.anim ? this.anim.frames[this.anim.i] : this.picture.path).w(size.w).h(size.h));
+        .when(!this.picture.clip, el => el.id("files-fit").on_scroll_wheel((e, cx) => { if (!e.modifiers?.control && !e.modifiers?.platform) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); }))
+        .map(el => { const size = fit({ w: box.w, h: box.h - (this.picture.clip ? 26 : 0) }, this.picture.w, this.picture.h); if (!this.picture.clip || !native) return el.child(image(this.anim ? this.anim.frames[this.anim.i] : this.picture.path).w(size.w).h(size.h));
           // 영상은 장면 한가운데에 동그라미 안 세모를 올린다. 장면 어디를 눌러도 ‘▶ 재생’과 같다.
           const b = playBadge(size.w, size.h);
           this.dockGeom = { tree: sideTree ? treeW + 5 : 0, poster: size };
@@ -1432,7 +1480,7 @@ export default class Files extends View {
             .child(image(this.picture.path).w(size.w).h(size.h))
             .child(h_flex().absolute().left(b.left).top(b.top).w(b.size).h(b.size).rounded_full().bg("#000000a0").border_2().border_color("#ffffffe0")
               .items_center().justify_center().pl(Math.round(b.size * 0.08)).text_size(Math.round(b.size * 0.42)).text_color("#ffffff").child("▶"))); })
-        .when(this.picture.clip, el => el.child(div().text_size(12).text_color(t.dim).child("미리보기 장면 · ▶를 누르면 이 자리에서 mpv로 틉니다 (스페이스 멈춤 · ←→ 이동 · q 닫기 · 다른 탭으로 가면 멈춤)")))
+        .when(this.picture.clip, el => el.child(div().text_size(12).text_color(t.dim).child(WIN() ? "미리보기 장면 · ▶를 누르면 이 자리에서 mpv로 틉니다 (스페이스 멈춤 · ←→ 이동 · q 닫기 · 다른 탭으로 가면 멈춤)" : "미리보기 장면 · ▶를 누르면 mpv 창으로 틉니다 (스페이스 멈춤 · ←→ 이동 · q 닫기)")))
       : div().flex_1().min_w(0).h_full().p(12).text_color(t.dim).child(this.fileError || (this.file ? "여는 중…" : "파일을 고르면 여기에 보입니다."));
     // 레이아웃 패널의 트리(role "tree")는 트리만. 미리보기 탭과 예전 창은 넓으면 나란히, 좁으면 하나씩.
     const body = role === "tree" ? tree().flex_1()
@@ -1490,7 +1538,7 @@ export default class Files extends View {
           this.copied = true; cx.notify();
           cx.timer.after(1500, cx => { this.copied = false; cx.notify(); });
         })))
-        .when(tools && Boolean(this.file) && windows, el => el.child(button("files-open", kind === "html" ? "브라우저에서 열기" : this.fileOn ? "복사본을 기본 앱으로 열기" : "기본 앱으로 열기", cx => this.open(cx)))))
+        .when(tools && Boolean(this.file) && native, el => el.child(button("files-open", kind === "html" ? "브라우저에서 열기" : this.fileOn ? "복사본을 기본 앱으로 열기" : "기본 앱으로 열기", cx => this.open(cx)))))
       .when(tools && Boolean(this.info) && Boolean(this.file), el => el.child(h_flex().id("files-info").h(24).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border).text_size(11.5).text_color(t.dim)
         .child(div().flex_1().min_w(0).truncate().child(this.info))
         // 사진 확대·축소: − [맞춤/NN%] +. 가운데를 누르면 맞춤으로 돌아간다. Ctrl+휠도 된다.
