@@ -5,7 +5,43 @@ const KINDS = {
   video: ["mp4", "mov", "mkv", "webm", "avi", "wmv", "m4v"],
   html: ["html", "htm"],
   mermaid: ["mmd", "mermaid"],
+  pdf: ["pdf"],
 };
+
+// ── PDF: Poppler(pdfinfo·pdftoppm·pdftotext)로 쪽 그림과 글을 만든다. ──
+// pdfinfo 출력에서 쪽 수, 제목, 첫 쪽 크기(pt)를 읽는다. 쪽 수가 없으면(PDF가 아님) null.
+export function parsePdfInfo(out) {
+  const pages = out?.match(/^Pages:\s+(\d+)/m);
+  if (!pages) return null;
+  const size = out.match(/^Page size:\s+([\d.]+) x ([\d.]+)/m);
+  return { pages: Number(pages[1]), title: out.match(/^Title:\s+(.*?)\s*$/m)?.[1] ?? "", w: size ? Number(size[1]) : 0, h: size ? Number(size[2]) : 0 };
+}
+
+// 다음에 그릴 쪽 범위: 5쪽씩(먼저 보이게), 한도(limit, "더 보기"로 20쪽씩 늘린다)까지. 다 그렸으면 null.
+export function pdfNext(pages, shown, limit, step = 5) {
+  const last = Math.min(pages, limit, shown + step);
+  return last > shown ? { first: shown + 1, last } : null;
+}
+
+// pdftoppm이 만드는 쪽 그림 이름: 쪽 번호를 전체 쪽 수의 자릿수만큼 0으로 채운다.
+export function pdfPageFile(prefix, page, pages) {
+  return `${prefix}-${String(page).padStart(String(pages).length, "0")}.png`;
+}
+
+export function pdftoppmArgs({ src, prefix, first, last, width }) {
+  return ["-q", "-png", "-f", String(first), "-l", String(last), "-scale-to-x", String(width), "-scale-to-y", "-1", src, prefix];
+}
+
+export function pdfKey(path, mtime, size, width) {
+  return htmlShotKey(path, mtime, size, width).replace(/^html-/, "pdf-");
+}
+
+// PATH에 pdftoppm이 없을 때 찾아볼 자리. winget(Poppler)은 버전 폴더라 main.js가 따로 찾는다.
+export function popplerCandidates(platform, home) {
+  if (platform === "windows") return [`${home}/scoop/apps/poppler/current/bin/pdftoppm.exe`, "C:/ProgramData/chocolatey/bin/pdftoppm.exe", "C:/Program Files/poppler/Library/bin/pdftoppm.exe"];
+  if (platform === "macos") return ["/opt/homebrew/bin/pdftoppm", "/usr/local/bin/pdftoppm"];
+  return ["/usr/bin/pdftoppm", "/usr/local/bin/pdftoppm"];
+}
 
 // CSV(또는 sep으로 나눈 TSV)를 행 배열로. 따옴표 안의 쉼표·줄바꿈과 ""(따옴표 하나)를 안다. 행은 max개까지.
 export function parseCsv(text, sep = ",", max = 5000) {

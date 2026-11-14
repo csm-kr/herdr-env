@@ -10,7 +10,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, winPath, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu } from "./kind.js";
+import { kindOf, psQuote, winPath, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -524,6 +524,21 @@ const OPEN = "file-viewer.open", TREE = "file-viewer.tree", VIEWERS = "file-view
 const LINK = "data/file-viewer/link.txt";
 // 영상 재생에 쓰는 mpv: PATH(where mpv)를 먼저, 없으면 흔한 설치 위치(mpvCandidates)에서 찾는다(한 번만).
 // GUI용 mpv.exe를 장면 자리에 테두리 없이 띄운다. 없으면 ffplay로 넘어간다.
+// Poppler(pdftoppm·pdfinfo·pdftotext)가 든 폴더. winget으로 막 설치하면 이미 떠 있는 Herdr의 PATH에는 없어서,
+// PATH → scoop·choco·Homebrew 자리 → winget 패키지 폴더(버전 이름이라 찾아본다) 순으로 찾는다. 못 찾은 결과는 기억하지 않는다(설치 뒤 바로 되게).
+let popplerBin;
+const FIND_POPPLER = "const fs=require('fs'),p=require('path'),[l,w]=process.argv.slice(1);let f=JSON.parse(l).find(x=>fs.existsSync(x));if(!f&&w&&fs.existsSync(w))for(const a of fs.readdirSync(w).filter(n=>n.startsWith('oschwartz10612.Poppler'))){for(const b of fs.readdirSync(p.join(w,a)).filter(n=>n.startsWith('poppler-'))){const e=p.join(w,a,b,'Library','bin','pdftoppm.exe');if(fs.existsSync(e)){f=e;break}}if(f)break}process.stdout.write(f||'')";
+async function findPoppler() {
+  if (popplerBin) return popplerBin;
+  const win = window()?.platform === "windows";
+  const where = await exec(win ? "where" : "which", ["pdftoppm"]).catch(() => null);
+  const found = where?.code === 0 ? where.stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean) : [];
+  const list = [...found, ...popplerCandidates(window()?.platform, home())];
+  const r = await exec("node", ["-e", FIND_POPPLER, JSON.stringify(list), win ? `${home()}/AppData/Local/Microsoft/WinGet/Packages` : ""]).catch(() => null);
+  const exe = r?.stdout.trim();
+  return popplerBin = exe ? exe.replace(/[\\/][^\\/]+$/, "") : null;
+}
+
 let mpvPath;
 async function findMpv() {
   if (mpvPath !== undefined) return mpvPath;
@@ -893,6 +908,7 @@ export default class Files extends View {
   // 마크다운·.mmd 속 Mermaid를 하나씩 그린다. 그리는 동안·실패하면 diagramView가 알려 준다.
   // 사진 확대·축소: 맞춤(null) ↔ 정해진 단계. box: 미리보기 칸 크기(맞춤 배율을 구한다).
   fitScale(box) {
+    if (this.pdf) return 1; // PDF는 미리보기 폭에 맞춘 것이 100%
     const p = this.picture;
     return p?.w ? fit({ w: box.w, h: box.h }, p.w, p.h).w / p.w : 1;
   }
@@ -919,6 +935,83 @@ export default class Files extends View {
       catch (e) { if (this.showSeq === seq) this.htmlShot = { error: String(e?.message ?? e) }; await logDebug(`HTML 그리기 실패: ${e?.stack ?? e}`); }
       cx.notify();
     });
+  }
+
+  // PDF: 쪽 수·제목을 읽고 쪽 그림을 그리기 시작한다. 글(pdftotext)은 Ctrl+F와 "글 보기"에 쓴다.
+  // 다른 머신의 PDF는 scp로 가져와서 다룬다. 쪽 그림은 미리보기 폭(480~1280px)으로 캐시에 만든다.
+  loadPdf(root, path, entry, on, seq, cx) {
+    const shown = () => this.showSeq === seq, full = `${root}/${path}`, win = window()?.platform === "windows";
+    this.fileError = on ? `${on}에서 PDF를 가져오는 중…` : "PDF를 여는 중…";
+    cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const bin = await findPoppler();
+        if (!bin) throw new Error("PDF를 보려면 Poppler가 필요합니다: winget install oschwartz10612.Poppler");
+        const exe = name => `${bin}/${name}${win ? ".exe" : ""}`, os = p => win ? winPath(p) : p;
+        const src = os(on ? await fetchRemote(on, full) : full);
+        const info = parsePdfInfo((await exec(exe("pdfinfo"), ["-enc", "UTF-8", src], { timeout: 30000 }).catch(() => null))?.stdout);
+        if (!info) throw new Error("PDF를 열 수 없습니다 (깨졌거나 암호가 걸렸을 수 있음)");
+        if (!shown()) return;
+        const tree = this.wide && !this.treeHidden ? (this.treeW ?? 340) : 0, width = htmlWidth((this.size?.width ?? 1200) - tree - 40);
+        await fs.mkdir(`${appHome()}/${CACHE}`, { recursive: true });
+        this.pdf = { src, exe, os, pages: info.pages, width, prefix: `${CACHE}/${pdfKey(full, entry?.mtime ?? 0, entry?.size ?? 0, width)}`, shown: 0, limit: 20, list: [], busy: false, error: null };
+        this.showSource = false; this.fileError = null;
+        this.info = [this.info, `${info.pages}쪽`, info.title && `“${info.title}”`].filter(Boolean).join(" · ");
+        cx.notify();
+        this.pdfMore(cx);
+        const t = await exec(exe("pdftotext"), ["-q", "-layout", "-enc", "UTF-8", src, "-"], { timeout: 60000 }).catch(() => null);
+        if (shown() && t?.code === 0) this.text = t.stdout;
+      } catch (e) { if (shown()) this.fileError = String(e?.message ?? e); }
+      finally { cx.notify(); }
+    });
+  }
+
+  // 쪽 그림을 5쪽씩 그려 바로바로 보여 준다. 한도(처음 20쪽)까지 그리고, "다음 20쪽"을 누르면 한도를 늘린다. 이미 캐시에 있으면 다시 그리지 않는다.
+  pdfMore(cx) {
+    const d = this.pdf, seq = this.showSeq;
+    if (!d || d.busy) return;
+    d.busy = true;
+    cx.spawn(async cx => {
+      try {
+        for (let r; this.showSeq === seq && (r = pdfNext(d.pages, d.shown, d.limit));) {
+          const pages = Array.from({ length: r.last - r.first + 1 }, (_, i) => r.first + i);
+          const ready = await Promise.all(pages.map(i => fs.exists(`${appHome()}/${pdfPageFile(d.prefix, i, d.pages)}`)));
+          if (!ready.every(Boolean)) {
+            const res = await exec(d.exe("pdftoppm"), pdftoppmArgs({ src: d.src, prefix: d.os(`${appHome()}/${d.prefix}`), first: r.first, last: r.last, width: d.width }), { timeout: 120000 });
+            if (res.code !== 0) throw new Error((res.stderr || "").trim().split(/\r?\n/)[0] || "쪽을 그리지 못했습니다");
+          }
+          for (const i of pages) {
+            const path = pdfPageFile(d.prefix, i, d.pages), { w, h } = imageSize(await fs.readFile(`${appHome()}/${path}`));
+            d.list.push({ path, w, h });
+          }
+          d.shown = r.last;
+          cx.notify();
+        }
+      } catch (e) { d.error = String(e?.message ?? e); await logDebug(`PDF 그리기 실패: ${e?.stack ?? e}`); }
+      finally { d.busy = false; cx.notify(); }
+    });
+  }
+
+  // PDF 쪽들: 미리보기 폭에 맞춘 것이 100%. Ctrl+휠과 정보 줄의 − / +로 키우고 줄인다.
+  pdfView(w, t, box) {
+    const d = this.pdf, width = Math.round(Math.max(40, w - 32) * (this.zoom ?? 1)), next = Math.min(d.pages, d.limit + 20);
+    return div().id("files-pdf").flex_1().min_w(0).min_h(0).p(16).overflow_scrollbar()
+      .on_scroll_wheel((e, cx) => { if (!e.modifiers?.control) return; this.zoomBy(e.delta.y > 0 ? 1 : -1, box); cx.stop_propagation(); cx.notify(); })
+      .child(v_flex().gap(6)
+        .children(d.list.map((p, i) => v_flex().gap(4).mb(10)
+          .child(div().w(width).h(Math.round(width * p.h / p.w)).border_1().border_color(t.border).child(image(p.path).w(width).h(Math.round(width * p.h / p.w))))
+          .child(div().text_size(11).text_color(t.dim).child(`${i + 1} / ${d.pages}`))))
+        .when(Boolean(d.error), el => el.child(div().text_size(12).text_color(t.ansi1).child(`쪽을 그리지 못했습니다: ${d.error}`)))
+        .when(d.busy, el => el.child(div().text_size(12).text_color(t.dim).child(`쪽을 그리는 중… (${d.shown}/${Math.min(d.pages, d.limit)})`)))
+        .when(!d.busy && !d.error && d.shown < d.pages, el => el.child(div().id("files-pdf-more").flex_none().px(10).py(5).rounded(6).border_1().border_color(t.border).cursor_pointer().hover(s => s.bg(t.hover)).text_size(12)
+          .on_click((_e, cx) => { d.limit = next; this.pdfMore(cx); cx.notify(); }).child(`다음 쪽 그리기 (${d.shown + 1}–${next}쪽)`))));
+  }
+
+  // "글 보기": pdftotext로 뽑은 글을 읽기 전용 편집기로. 그림으로만 된 PDF는 글이 없다.
+  togglePdfText(cx) {
+    this.showSource = !this.showSource;
+    if (this.showSource && !this.code) this.code = EditorState.new({ language: "text", readonly: true, value: this.text?.trim() ? this.text : "(뽑을 글이 없습니다. 스캔한 그림으로만 된 PDF일 수 있습니다)", font_family: settings().font_family, font_size: 12 });
+    cx.notify();
   }
 
   // 그린 HTML: 조각 그림을 미리보기 폭에 맞춰 위아래로 이어 붙인다(크게는 키우지 않는다).
@@ -1174,7 +1267,7 @@ export default class Files extends View {
     // 다른 파일로 옮기면 창 안 재생을 끈다(this.file을 바꾸기 전에 비교).
     if (path !== this.file) { this.stopMpv(); this.player.stop(); this.anchor = null; }
     this.code?.release(); this.code = null; this.file = path; this.fileError = null; this.picture = null; this.rendered = null; this.audio = null;
-    this.text = null; this.tail = null; this.htmlShot = null; this.anim = null; this.zoom = null; this.following = false; this.diff = null; this.closeFind();
+    this.text = null; this.tail = null; this.htmlShot = null; this.pdf = null; this.anim = null; this.zoom = null; this.following = false; this.diff = null; this.closeFind();
     // 정보 줄: 목록에서 이미 아는 크기·수정 시각, 그 뒤에 해상도나 영상·소리 정보를 붙인다.
     const cut = path?.lastIndexOf("/") ?? -1, entry = path && this.entries.get(cut < 0 ? "" : path.slice(0, cut))?.find(e => e.name === path.slice(cut + 1));
     this.info = path ? [path.slice(cut + 1), entry?.size != null && formatSize(entry.size), formatDate(entry?.mtime)].filter(Boolean).join(" · ") : "";
@@ -1186,6 +1279,7 @@ export default class Files extends View {
     const root = this.root, on = this.on, kind = kindOf(path);
     const addInfo = text => { if (text && this.showSeq === seq) { this.info = [this.info, text].filter(Boolean).join(" · "); cx.notify(); } };
     this.mediaDuration = 0;
+    if (kind === "pdf") return this.loadPdf(root, path, entry, on, seq, cx);
     if (kind === "video" || kind === "audio") cx.spawn(async () => {
       const p = await probeInfo(on ? await remoteUrl(on, `${root}/${path}`) : `${root}/${path}`);
       if (this.showSeq === seq) this.mediaDuration = Number(p?.format?.duration) || 0;
@@ -1309,7 +1403,8 @@ export default class Files extends View {
     // 개발용 보기가 켜져 있으면 그게 먼저다: 찾기 결과 > git 변경 > 따라가기 > CSV 표 > 보통 미리보기.
     const preview = () => this.find?.query ? this.findView(t) : this.diff ? this.diffView(t) : this.following ? this.followView(t)
       : this.rendered?.csv && !this.showSource ? this.csvView(t)
-      : this.htmlShot?.tiles && !this.showSource ? this.htmlView(box?.w ?? 900) : basePreview();
+      : this.htmlShot?.tiles && !this.showSource ? this.htmlView(box?.w ?? 900)
+      : this.pdf && !this.showSource ? this.pdfView(box?.w ?? 900, t, box) : basePreview();
     const basePreview = () => this.rendered && !this.rendered.csv && !this.showSource ? div().id("files-rendered").flex_1().min_w(0).min_h(0).p(16).overflow_y_scrollbar()
         // HTML을 브라우저로 그리는 중이거나 실패했으면 위에 알리고, 그동안은 글 버전을 보여 준다.
         .when(Boolean(this.htmlShot?.pending || this.htmlShot?.error), el => el.child(div().mb(10).px(10).py(6).rounded(6).bg(t.surface).text_size(12)
@@ -1381,9 +1476,11 @@ export default class Files extends View {
         // 원문 ↔ 렌더링(마크다운·HTML·CSV·Mermaid).
         .when(tools && Boolean(this.rendered), el => el.child(button("files-source", this.showSource ? "렌더링 보기" : "원문 보기", cx => { this.showSource = !this.showSource; cx.notify(); })))
         // 끝 따라가기: 그려 보여 주는 파일(마크다운·HTML·CSV)이 아닌 글·로그 파일에만.
-        .when(tools && Boolean(this.code) && !this.rendered, el => el.child(button("files-follow", this.following ? "따라가기 끄기" : "끝 따라가기", cx => { this.following = !this.following; this.tail = null; if (this.following) this.followTick(cx); cx.notify(); })))
+        // PDF: 쪽 그림 ↔ 뽑은 글.
+        .when(tools && Boolean(this.pdf), el => el.child(button("files-pdf-text", this.showSource ? "쪽 보기" : "글 보기", cx => this.togglePdfText(cx))))
+        .when(tools && Boolean(this.code) && !this.rendered && !this.pdf, el => el.child(button("files-follow", this.following ? "따라가기 끄기" : "끝 따라가기", cx => { this.following = !this.following; this.tail = null; if (this.following) this.followTick(cx); cx.notify(); })))
         // git 변경: 저장소 안의 파일일 때만.
-        .when(tools && Boolean(this.file) && Boolean(this.inRepo) && kind !== "image" && kind !== "video" && kind !== "audio", el => el.child(button("files-diff", this.diff ? "git 변경 닫기" : "git 변경", cx => { if (this.diff) this.diff = null; else this.loadDiff(cx); cx.notify(); })))
+        .when(tools && Boolean(this.file) && Boolean(this.inRepo) && kind !== "image" && kind !== "video" && kind !== "audio" && kind !== "pdf", el => el.child(button("files-diff", this.diff ? "git 변경 닫기" : "git 변경", cx => { if (this.diff) this.diff = null; else this.loadDiff(cx); cx.notify(); })))
         // 창 안 재생 중이면 끄는 버튼. mpv가 스스로 끝나면 1초 안에 사라진다.
         .when(Boolean(this.native), el => el.child(button("files-mpv-stop", "■ 재생 끄기", cx => { this.stopMpv(); cx.notify(); })))
         .when(Boolean(this.root), el => el.child(button("files-copy", this.copied ? "복사됨 ✓" : "경로 복사", cx => {
@@ -1397,7 +1494,7 @@ export default class Files extends View {
       .when(tools && Boolean(this.info) && Boolean(this.file), el => el.child(h_flex().id("files-info").h(24).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border).text_size(11.5).text_color(t.dim)
         .child(div().flex_1().min_w(0).truncate().child(this.info))
         // 사진 확대·축소: − [맞춤/NN%] +. 가운데를 누르면 맞춤으로 돌아간다. Ctrl+휠도 된다.
-        .when(Boolean(this.picture && !this.picture.clip && box), e => {
+        .when(Boolean((this.picture && !this.picture.clip || this.pdf && !this.showSource) && box), e => {
           const zb = (id, label, act) => div().id(id).flex_none().px(6).rounded(4).border_1().border_color(t.border).cursor_pointer().hover(s => s.bg(t.hover)).on_click((_e, cx) => { act(); cx.notify(); }).child(label);
           return e.child(zb("zoom-out", "−", () => this.zoomBy(-1, box)))
             .child(zb("zoom-fit", this.zoom == null ? `맞춤 ${Math.round(this.fitScale(box) * 100)}%` : `${Math.round(this.zoom * 100)}%`, () => { this.zoom = null; }))

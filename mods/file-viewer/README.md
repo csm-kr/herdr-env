@@ -14,7 +14,7 @@ Herdr 안에서 파일을 바로 보는 미리보기 탭. 왼쪽은 폴더 트�
 - 위쪽 `⌂ 프로젝트 루트` / `↩ 원래 폴더`: git 저장소 맨 위와 원래 폴더를 오간다. 저장소가 아니면 Ctrl+Shift+G로 연 폴더가 루트다.
 
 ## 보이는 것
-그림(움직이는 GIF·WebP·APNG는 Chrome으로 프레임을 풀어 움직인다, `anim-frames.js`), 영상(▶를 누르면 장면 자리에 mpv 창이 붙어서 튼다), 소리(재생 막대), 마크다운, HTML(이 PC의 파일은 Chrome·Edge로 그린 실제 모습), Mermaid(`.mmd`와 `.md` 속 ```mermaid 블록), CSV·TSV 표, 코드(고치고 Ctrl+S로 저장), Ctrl+F 찾기, 로그 따라가기, git 변경(diff), 경로 복사, 트리 너비 끌기.
+그림(움직이는 GIF·WebP·APNG는 Chrome으로 프레임을 풀어 움직인다, `anim-frames.js`), 영상(▶를 누르면 장면 자리에 mpv 창이 붙어서 튼다), 소리(재생 막대), 마크다운, HTML(이 PC의 파일은 Chrome·Edge로 그린 실제 모습), Mermaid(`.mmd`와 `.md` 속 ```mermaid 블록), CSV·TSV 표, PDF(쪽 그림을 5쪽씩 그려 20쪽까지 먼저, "다음 쪽 그리기"로 더, 확대·축소, "글 보기"와 Ctrl+F는 뽑은 글로), 코드(고치고 Ctrl+S로 저장), Ctrl+F 찾기, 로그 따라가기, git 변경(diff), 경로 복사, 트리 너비 끌기.
 
 ## 트리 우클릭
 - **다운로드 폴더로 받기**: 이 PC의 다운로드 폴더(옮겨 두었으면 그 자리)로 받는다. 다른 머신의 파일·폴더는 scp로 받는다. 같은 이름이 있으면 `이름 (1)`로 받는다.
@@ -33,7 +33,7 @@ Herdr 안에서 파일을 바로 보는 미리보기 탭. 왼쪽은 폴더 트�
 powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 ```
 - `herdrview:` 주소를 현재 사용자로 등록한다. 링크 처리기는 `herdr-link.js`이고 UTF-16으로 저장돼 있다. Windows 스크립트 엔진이 UTF-8 한글을 CP949로 잘못 읽기 때문이다.
-- 필요한 도구: ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`, sftp가 되는 full 빌드), mpv(`shinchiro.mpv`), node, mermaid-cli(`npm i -g @mermaid-js/mermaid-cli`). mermaid-cli는 그 PC의 Chrome·Edge·Chromium을 찾아 쓴다.
+- 필요한 도구: ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`, sftp가 되는 full 빌드), mpv(`shinchiro.mpv`), Poppler(`oschwartz10612.Poppler`, PDF), node, mermaid-cli(`npm i -g @mermaid-js/mermaid-cli`). mermaid-cli는 그 PC의 Chrome·Edge·Chromium을 찾아 쓴다.
 - `mods\path-picker` 폴더도 같이 복사한다. `install.ps1`이 단축키 Ctrl+Shift+G(미리보기)와 Ctrl+Shift+Y(경로 열기)를 넣는다. 다른 동작에 이미 쓰이는 키는 덮어쓰지 않고 알려 준다.
 - 원격 영상·그림은 ffmpeg·mpv가 sftp로 직접 읽는다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 한다. `hc`가 되어도 키 조건이 다르면 영상만 안 될 수 있다.
 - 원격 머신에 필요한 것: `sh`, `find`(GNU), `test`, `head`, `tail`, `git`. stat은 GNU와 BSD 모두 된다.

@@ -36,7 +36,7 @@ Claude Code가 하는 순서는 [CLAUDE.md](CLAUDE.md)에 적어 두었습니다
 
 Herdr 안에서 VS Code를 열지 않고 파일을 바로 보는 미리보기 탭입니다. 이 PC의 파일과 `hc machine`으로 연결한 다른 머신(ssh)의 파일을 모두 엽니다.
 
-- 그림(확대·축소, 움직이는 GIF·WebP), 영상(장면 자리에 붙는 mpv 창), 소리(재생 막대), 마크다운, Mermaid, HTML(Chrome·Edge로 그린 실제 모습), CSV 표, 코드 편집·저장
+- 그림(확대·축소, 움직이는 GIF·WebP), 영상(장면 자리에 붙는 mpv 창), 소리(재생 막대), 마크다운, Mermaid, HTML(Chrome·Edge로 그린 실제 모습), CSV 표, PDF(쪽 그림·확대·글 찾기), 코드 편집·저장
 - Ctrl+F 찾기, 로그 따라가기, git 변경(diff), 경로 복사, 프로젝트 루트 오가기, 트리 너비 끌기
 - 트리 우클릭: 다운로드 폴더로 받기(다른 머신은 scp), 다운로드 폴더 열기, 경로 복사, 기본 앱으로 열기
 - `herdrview://` 링크를 Ctrl+클릭하면 그 파일을 그 시각으로 엽니다.
@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 
 `install.ps1`이 모드 두 개를 `~\.config\herdr-app\mods`로, 스킬을 `~\.claude\skills`로 복사하고 `mods\file-viewer\install.ps1`(링크 등록·단축키·도구)을 돌립니다. 여러 번 돌려도 되고, 업데이트할 때는 `git pull` 뒤 다시 돌리면 됩니다.
 
-- `install.ps1`은 ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`), mpv(`shinchiro.mpv`), node, git, ssh, mermaid-cli를 확인하고 `-Install`이면 winget·npm으로 설치합니다.
+- `install.ps1`은 ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`), mpv(`shinchiro.mpv`), Poppler(PDF), node, git, ssh, mermaid-cli를 확인하고 `-Install`이면 winget·npm으로 설치합니다.
 - 단축키는 `keys.ps1`이 맞춥니다. Ctrl+Shift+↑/↓(스페이스 전환), Ctrl+Shift+Q(스페이스 닫기), Ctrl+Shift+G·Y(모드)를 넣고 Ctrl+Shift+L(레이아웃 전환)을 뺍니다. `keys.json`을 통째로 덮지 않고 그 줄만 고치며, 다른 동작에 이미 쓰이는 키는 그대로 두고 알려 줍니다.
 - Herdr 설정(`settings.json`)과 레이아웃은 기본값을 쓰므로 저장소에 넣지 않았습니다.
 - 다른 머신의 영상·그림은 ffmpeg·mpv가 sftp로 읽습니다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 합니다.

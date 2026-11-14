@@ -57,7 +57,8 @@ $tools = @(
   @{ name = 'git';     why = 'git 표시·변경, 프로젝트 루트'; winget = 'Git.Git' },
   @{ name = 'ssh';     why = '다른 머신 파일(sftp 키 확인)'; winget = 'Microsoft.OpenSSH.Beta' },
   @{ name = 'scp';     why = '다른 머신 파일 가져오기';  winget = 'Microsoft.OpenSSH.Beta' },
-  @{ name = 'mmdc';    why = 'Mermaid 다이어그램';     npm = '@mermaid-js/mermaid-cli' }
+  @{ name = 'mmdc';    why = 'Mermaid 다이어그램';     npm = '@mermaid-js/mermaid-cli' },
+  @{ name = 'pdftoppm'; why = 'PDF 쪽 그림·글(Poppler)'; winget = 'oschwartz10612.Poppler'; extra = @(Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\oschwartz10612.Poppler*\poppler-*\Library\bin\pdftoppm.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName) }
 )
 $missing = @()
 foreach ($t in $tools) {
