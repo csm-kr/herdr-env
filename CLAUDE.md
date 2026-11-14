@@ -6,44 +6,44 @@
 - 이미 받아 둔 곳이 있으면(`~/herdr-env` 등) 그 폴더에서 `git pull`, 없으면 `git clone https://github.com/csm-kr/herdr-env.git ~/herdr-env`.
 
 ## 2. 먼저 확인
-- **OS**: `install.ps1`은 Windows 전용이다. macOS(`uname`이 `Darwin`)면 3·4 대신 아래 "macOS" 절을 따른다(`install.sh`).
+- **OS를 스스로 알아낸다. 사용자에게 묻지 않는다.** `uname -s`를 돌린다.
+
+  | `uname -s` 결과 | OS | 3번에서 돌릴 것 |
+  |---|---|---|
+  | `Darwin` | macOS | `./install.sh --install` |
+  | `MINGW…`, `MSYS…`, `CYGWIN…`, 또는 `uname`이 없음(PowerShell) | Windows | `powershell -ExecutionPolicy Bypass -File install.ps1 -Install` |
+  | `Linux` | 리눅스 | 설치 스크립트가 없다. 아직 지원하지 않는다고 알리고 멈춘다 |
+
 - **Herdr 설정 폴더**: `~/.config/herdr-app`이 없으면 Herdr를 한 번 실행해 달라고 하고 멈춘다.
 - **덮어쓸 파일**: `~/.config/herdr-app/mods/file-viewer`, `path-picker`가 이미 있으면 저장소 것과 비교한다(`gpui-kit.d.ts`는 빼고). 사용자가 직접 고친 흔적이 있으면 덮어쓰기 전에 묻는다.
 
 ## 3. 설치
-저장소 폴더에서:
+저장소 폴더에서, 2번에서 알아낸 OS의 명령 하나를 돌린다. 두 스크립트는 같은 일을 한다.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Install
-```
+| 하는 일 | Windows (`install.ps1 -Install`) | macOS (`install.sh --install`) |
+|---|---|---|
+| 모드 두 개 복사 | `~\.config\herdr-app\mods` | `~/.config/herdr-app/mods` |
+| 스킬 복사 | `~\.claude\skills` | `~/.claude/skills` |
+| 내 단축키 | `keys.ps1` (Ctrl+Shift+↑↓·Q·G·Y 넣기, L 빼기) | `keys-mac.mjs` (`references/csm-kr-preset-mac.md`의 19개 넣기, `cmd-shift-l`·`cmd-shift-w` 빼기, `option_as_alt`를 `"on"`으로) |
+| 빠진 도구 설치 | winget·npm (ffmpeg, mpv, node, git, ssh, mermaid-cli, Poppler) | brew·npm (ffmpeg, mpv, node, mermaid-cli, Poppler) |
+| `herdrview:` 링크 등록 | 한다 | 아직 안 한다 |
 
-- 모드 두 개를 `~\.config\herdr-app\mods`로, 스킬을 `~\.claude\skills`로 복사한다.
-- `keys.ps1`로 내 단축키를 맞춘다(Ctrl+Shift+↑↓·Q·G·Y 넣기, L 빼기). `herdrview:` 링크를 등록한다.
-- 빠진 도구(ffmpeg, mpv, node, git, ssh, mermaid-cli)를 winget·npm으로 설치한다. winget이 동의나 권한 창을 띄우면 사용자에게 허용해 달라고 한다.
-- 단축키가 다른 동작에 이미 쓰이고 있다는 노란 줄이 나오면, 무엇과 겹치는지 사용자에게 알리고 다른 키를 고르게 한다(`herdr-shortcuts` 스킬 절차).
+- 단축키는 파일을 통째로 덮지 않고 그 줄만 고친다. 다른 동작에 이미 쓰이고 있다는 노란 줄이 나오면, 무엇과 겹치는지 사용자에게 알리고 다른 키를 고르게 한다(`herdr-shortcuts` 스킬 절차).
+- Windows: winget이 동의나 권한 창을 띄우면 사용자에게 허용해 달라고 한다.
+- macOS: git·ssh·scp가 없으면 `xcode-select --install`을 안내만 하니 사용자에게 알린다. Homebrew가 없으면 brew로 넣는 도구는 건너뛰고 알려 준다.
 
 ## 4. 확인
-- `~/.config/herdr-app/keys.error`가 없어야 한다.
+두 OS 모두:
+- 2초 기다린 뒤 `~/.config/herdr-app/keys.error`가 없어야 한다.
 - `herdr-app status`의 `errors`가 비어 있어야 한다.
-- 각 모드 폴더에서 `herdr-app check .`가 통과해야 한다.
-- `mods/file-viewer`와 `mods/path-picker`에서 `node --test test/*.mjs`가 모두 통과해야 한다.
-- 레지스트리 `HKCU:\Software\Classes\herdrview\shell\open\command`가 설치된 `herdr-link.js`를 가리켜야 한다.
+- `~/.config/herdr-app/mods/file-viewer`와 `path-picker`에서 `herdr-app check .`가 통과해야 한다.
+- 저장소의 `mods/file-viewer`와 `mods/path-picker`에서 `node --test test/*.mjs`가 모두 통과해야 한다.
+
+OS마다:
+- Windows: 레지스트리 `HKCU:\Software\Classes\herdrview\shell\open\command`가 설치된 `herdr-link.js`를 가리켜야 한다.
+- macOS: 저장소 맨 위에서도 `node --test test/*.mjs`(`keys-mac.mjs` 테스트)가 통과해야 한다. Mac에서 아직 안 되는 것을 알린다: 영상은 장면 자리에 붙지 않고 보통 mpv 창으로 뜬다. `herdrview:` 링크는 등록하지 않는다.
 
 Herdr 안에서 탭을 열거나 단축키를 대신 눌러 보지 않는다. `tab.new` 같은 명령은 사용자가 보던 화면을 빼앗는다. 마지막에 사용자에게 Herdr 터미널에서 Ctrl+Shift+G와 Ctrl+Shift+Y를 눌러 봐 달라고 한다.
-
-## macOS
-1. 저장소 폴더에서 `./install.sh --install`을 돌린다.
-   - 모드 두 개를 `~/.config/herdr-app/mods`로, 스킬을 `~/.claude/skills`로 복사한다.
-   - 빠진 도구(ffmpeg, mpv, node, mermaid-cli, Poppler)를 brew·npm으로 설치한다. git·ssh·scp가 없으면 `xcode-select --install`을 안내만 하니 사용자에게 알린다.
-   - `keys-mac.mjs`로 단축키를 맞춘다(`references/csm-kr-preset-mac.md`의 키 19개 넣기, `cmd-shift-l`과 `cmd-shift-w` 빼기). 파일을 통째로 덮지 않고 그 줄만 고친다.
-   - `settings.json`의 `option_as_alt`를 `"on"`으로 둔다. 다른 설정은 건드리지 않는다.
-2. 단축키가 다른 동작에 이미 쓰이고 있다는 노란 줄이 나오면, 무엇과 겹치는지 사용자에게 알리고 다른 키를 고르게 한다(`herdr-shortcuts` 스킬 절차).
-3. 확인한다.
-   - 2초 기다린 뒤 `keys.error`가 없어야 하고, `herdr-app status`의 `errors`가 비어 있어야 한다.
-   - `~/.config/herdr-app/mods/file-viewer`와 `path-picker`에서 `herdr-app check .`가 통과해야 한다.
-   - 저장소의 `mods/file-viewer`, `mods/path-picker`, 맨 위 폴더에서 `node --test test/*.mjs`가 모두 통과해야 한다.
-4. Mac에서 아직 안 되는 것을 알린다: 영상은 장면 자리에 붙지 않고 보통 mpv 창으로 뜬다. `herdrview:` 링크는 등록하지 않는다.
-5. Windows와 같이 Herdr 안에서 탭을 열거나 단축키를 대신 누르지 않는다. 마지막에 사용자에게 Ctrl+Shift+G와 Ctrl+Shift+Y를 눌러 봐 달라고 한다.
 
 ## 5. 다른 머신(선택)
 `hc machine`으로 연결한 리눅스 머신의 영상·그림은 이 PC의 ffmpeg·mpv가 sftp로 읽는다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 한다. 사용자가 원격 파일도 볼 거라면 `ssh -o BatchMode=yes <머신> true`로 확인하고, 안 되면 키 설정을 안내한다.

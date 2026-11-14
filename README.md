@@ -18,12 +18,12 @@ herdr-env/
 
    > https://github.com/csm-kr/herdr-env 를 받아서 저장소의 CLAUDE.md 순서대로 Herdr 환경을 설치해줘.
 
-3. Claude Code가 저장소를 받고, Windows는 `install.ps1 -Install`, Mac은 `install.sh --install`로 모드·내 단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
+3. Claude Code가 저장소를 받고, **그 PC의 운영체제를 스스로 알아내** 맞는 설치 스크립트를 돌립니다(Windows는 `install.ps1 -Install`, Mac은 `install.sh --install`). 모드·내 단축키·스킬·도구를 설치한 뒤 제대로 됐는지 확인합니다. winget 설치 중에 권한 확인 창이 뜨면 허용합니다.
 4. 끝나면 Herdr 터미널에서 **Ctrl+Shift+G**(미리보기 탭), **Ctrl+Shift+Y**(경로 열기)를 눌러 봅니다. 단축키 스킬은 Claude Code를 새로 열면 잡힙니다.
 
 업데이트도 같은 방법으로 합니다: "herdr-env를 최신으로 받아서 다시 설치해줘".
 
-**Mac**에서도 같은 문장을 쓰면 됩니다. Mac에서는 `install.sh`가 이렇게 합니다.
+Windows와 Mac 모두 **같은 문장**을 쓰면 됩니다. Mac에서는 `install.sh`가 이렇게 합니다.
 - 모드 두 개(미리보기, 경로 열기)와 단축키 스킬을 설치합니다.
 - [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Option 키 19개를 넣고 Cmd+Shift+L·W를 뺍니다.
 - `option_as_alt`를 켭니다.
