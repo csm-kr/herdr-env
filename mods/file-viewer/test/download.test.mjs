@@ -12,8 +12,12 @@ test("freeName: 다운로드 폴더에 같은 이름이 있으면 Windows처럼 
   assert.equal(freeName("x.tar.gz", ["x.tar.gz"]), "x.tar (1).gz");
 });
 
-test("treeMenu: 다운로드·다운로드 폴더 열기·경로 복사, 그리고 파일은 기본 앱으로 열기, 폴더는 여기를 루트로", () => {
-  assert.deepEqual(treeMenu({ dir: false }).map(m => m.id), ["download", "downloads", "copy", "open"]);
-  assert.deepEqual(treeMenu({ dir: true }).map(m => m.id), ["download", "downloads", "copy", "root"]);
+test("treeMenu: 새 파일·새 폴더, 다운로드·다운로드 폴더 열기·경로 복사, 그리고 파일은 기본 앱으로 열기, 폴더는 여기를 루트로", () => {
+  assert.deepEqual(treeMenu({ dir: false }).map(m => m.id), ["newFile", "newFolder", "download", "downloads", "copy", "open"]);
+  assert.deepEqual(treeMenu({ dir: true }).map(m => m.id), ["newFile", "newFolder", "download", "downloads", "copy", "root"]);
   assert.ok(treeMenu({ dir: false }).every(m => m.label));
+});
+
+test("treeMenu: 트리의 빈 곳(맨 위 폴더)은 새 파일·새 폴더만", () => {
+  assert.deepEqual(treeMenu({ dir: true, top: true }).map(m => m.id), ["newFile", "newFolder"]);
 });

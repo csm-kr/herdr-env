@@ -512,13 +512,48 @@ export function freeName(name, taken) {
 }
 
 // 트리에서 우클릭하면 뜨는 메뉴. 다운로드는 이 PC의 다운로드 폴더로 가져온다(다른 머신은 scp).
+// 트리의 빈 곳(entry.top: 맨 위 폴더)은 새 파일·새 폴더만.
 export function treeMenu(entry) {
+  const create = [{ id: "newFile", label: "새 파일" }, { id: "newFolder", label: "새 폴더" }];
+  if (entry.top) return create;
   return [
+    ...create,
     { id: "download", label: "다운로드 폴더로 받기" },
     { id: "downloads", label: "다운로드 폴더 열기" },
     { id: "copy", label: "경로 복사" },
     entry.dir ? { id: "root", label: "이 폴더를 루트로" } : { id: "open", label: "기본 앱으로 열기" },
   ];
+}
+
+// 새 파일·새 폴더를 만들 곳(트리 기준 경로): 폴더를 우클릭하면 그 안, 파일이면 그 파일이 있는 폴더.
+export function createParent(path, dir) {
+  if (dir) return path;
+  const cut = path.lastIndexOf("/");
+  return cut < 0 ? "" : path.slice(0, cut);
+}
+
+// 이름 칸에 처음 넣어 둘 이름. 같은 이름이 있으면 freeName처럼 (1)을 붙인다.
+export function newName(kind, taken) {
+  return freeName(kind === "folder" ? "새 폴더" : "새 파일.txt", taken);
+}
+
+// 새 이름을 쓸 수 있으면 null, 아니면 이유. 다른 머신(리눅스)도 Windows 규칙으로 막아 어디로 옮겨도 깨지지 않게 한다.
+export function checkNewName(name, taken) {
+  if (!name.trim()) return "이름을 넣으세요";
+  if (/[\\/:*?"<>|\u0000-\u001f]/.test(name)) return '이름에 \\ / : * ? " < > | 는 쓸 수 없습니다';
+  if (name === "." || name === "..") return "쓸 수 없는 이름입니다";
+  if (/[. ]$/.test(name)) return "이름 끝에 점이나 공백은 쓸 수 없습니다";
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(name)) return "Windows가 따로 쓰는 이름이라 쓸 수 없습니다";
+  if (taken.some(n => n.toLowerCase() === name.toLowerCase())) return "같은 이름이 이미 있습니다";
+  return null;
+}
+
+// 새 파일·폴더를 만드는 명령 [프로그램, 인자]. 있는 것은 덮지 않는다. 경로는 인자로 넘겨 따옴표·한글 문제가 없게 한다.
+// 이 PC는 node(모드의 fs는 ~/.config/herdr-app 밖에 못 쓴다), 다른 머신은 sh(set -C: > 가 있는 파일을 덮지 않는다).
+const NODE_CREATE = "const fs=require('fs'),[k,p]=process.argv.slice(1);try{k==='folder'?fs.mkdirSync(p):fs.writeFileSync(p,'',{flag:'wx'})}catch(e){process.stderr.write(e.code==='EEXIST'?'같은 이름이 이미 있습니다':e.message);process.exit(1)}";
+export function createCommand(kind, path, on) {
+  if (on) return ["sh", ["-c", 'if [ "$1" = folder ]; then mkdir -- "$2"; else set -C; : > "$2"; fi', "sh", kind, path]];
+  return ["node", ["-e", NODE_CREATE, kind, path]];
 }
 
 // 다른 머신의 폴더 목록(GNU find). -H: 시작 폴더가 심볼릭 링크(~/ep2)여도 따라간다. 없으면 목록이 빈다.
