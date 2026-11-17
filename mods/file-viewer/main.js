@@ -11,7 +11,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey } from "./kind.js";
+import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -46,6 +46,9 @@ async function statLocal(path) {
   const [mtime, size] = r.stdout.split(" ").map(Number);
   return { mtime, size };
 }
+// fs로 읽은 목록은 크기·수정 시각이 뒤늦게 온다. 캐시 이름에 시각이 꼭 들어가야 하는 곳(영상·PDF·HTML·움직이는 그림)은
+// 아직 없으면 그 파일 하나만 읽는다. 없이 만들면 파일이 바뀌어도 예전 캐시를 보여 준다.
+const withStamp = async (entry, full, on) => on || entry?.mtime !== undefined ? entry : { ...entry, ...(await statLocal(osPath(full))) };
 // macOS: 그림을 캐시로 복사하고 "이름|너비|높이"를 돌려준다(Windows의 cacheImage와 같은 일). 홈 밖의 파일과 svg가 이 길로 온다.
 async function cacheImageMac(path) {
   const dir = `${appHome()}/${CACHE}`, e = await statLocal(path);
@@ -136,6 +139,10 @@ async function remoteUrl(on, path) {
 // 후보(긴 것부터) 가운데 그 머신에 실제로 있는 첫 경로. 하나도 없으면 가장 긴 것을 열어 뷰어가 없다고 보여 준다.
 async function existing(candidates, on, strict = false) {
   for (const c of candidates) {
+    // 이 PC 홈 안은 fs로 바로 본다(PowerShell Test-Path는 띄우는 데만 몇 초 걸리는 PC가 있다). 못 읽으면(홈 밖) 아래로.
+    const quick = on ? null : await fs.exists(c.path).catch(() => null);
+    if (quick === true) return c;
+    if (quick === false) continue;
     const r = on ? await exec("test", ["-e", c.path], { on, timeout: 8000 }).catch(() => null)
       : !WIN() ? await exec("test", ["-e", c.path]).catch(() => null)
       : await exec("powershell", ["-NoProfile", "-Command", "& { param($p) if (-not (Test-Path -LiteralPath $p)) { exit 1 } } " + psQuote(c.path)]).catch(() => null);
@@ -205,6 +212,7 @@ async function findPuppeteer() {
   return puppeteerDir = ok ? dir : null;
 }
 async function renderHtml(full, entry, width) {
+  entry = await withStamp(entry, full, null);
   const dir = `${appHome()}/${CACHE}`, key = htmlShotKey(full, entry?.mtime ?? 0, entry?.size ?? 0, width), meta = `${dir}/${key}.json`;
   const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
@@ -227,8 +235,15 @@ async function renderHtml(full, entry, width) {
 // 상대 경로(rel)로 끝나는 파일·폴더를 base 아래(8단계까지, .git·node_modules 등 제외)에서 찾는다: [{ path, mtime, dir }].
 // 이 PC는 node로, 다른 머신은 그 머신의 find로.
 const FIND_REL = "const fs=require('fs'),path=require('path'),[base,rel]=process.argv.slice(1),want=rel.toLowerCase(),skip=new Set(['.git','node_modules','.venv','__pycache__']),out=[];let seen=0;const d0=path.resolve(base,rel);if(fs.existsSync(d0)){const s=fs.statSync(d0);process.stdout.write(JSON.stringify([{path:d0,mtime:s.mtimeMs/1000,dir:s.isDirectory()}]));process.exit(0)}const walk=(d,k)=>{if(k>8||out.length>=50||seen>60000)return;let es=[];try{es=fs.readdirSync(d,{withFileTypes:true})}catch{return}for(const e of es){seen++;if(skip.has(e.name))continue;const p=path.join(d,e.name),n=p.split(path.sep).join('/').toLowerCase();if(n.endsWith('/'+want)){try{const s=fs.statSync(p);out.push({path:p,mtime:s.mtimeMs/1000,dir:s.isDirectory()})}catch{}}if(e.isDirectory())walk(p,k+1)}};walk(base,0);process.stdout.write(JSON.stringify(out))";
-// 폴더인가(다른 머신은 test -d, 이 PC는 node).
+// 모드의 fs는 홈 안만 읽는다. 그 밖을 읽으려 하면 "outside every granted read root" 오류가 난다.
+const outsideFs = e => /granted (read|write) root/.test(String(e?.message ?? e));
+// 폴더인가(다른 머신은 test -d, 이 PC는 fs, 홈 밖은 node).
 async function isDirectory(path, on) {
+  // 이 PC 홈 안: 폴더면 fs.readdir가 읽히고, 파일·없는 경로면 실패한다. fs 권한 밖(홈 밖)이면 node로 확인한다.
+  if (!on) {
+    const dir = await fs.readdir(path).then(() => true, e => outsideFs(e) ? null : false);
+    if (dir !== null) return dir;
+  }
   const r = on ? await exec("test", ["-d", path], { on, timeout: 8000 }).catch(() => null)
     : await exec("node", ["-e", "process.exit(require('fs').statSync(process.argv[1]).isDirectory()?0:1)", osPath(path)]).catch(() => null);
   return r?.code === 0;
@@ -253,10 +268,24 @@ async function projectRootOf(cwd, on, prefix) {
   const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on, timeout: 5000 }).catch(() => null);
   return top?.code === 0 ? top.stdout.trim() : null;
 }
+// 폴더가 속한 저장소의 { root, prefix }, 저장소 밖이면 null. 이 PC 홈 안은 .git을 fs로 찾아 git을 띄우지 않는다.
+// 홈 안에서 올라가다 홈 밖(C:\Users 등)에 닿으면 fs가 못 읽으니 거기는 없는 것으로 본다. 처음부터 못 읽으면(홈 밖, 다른 머신) git으로.
+async function repoOf(cwd, on, timeout = 30000) {
+  if (!on) {
+    let readable = false;
+    const exists = async p => { try { const r = await fs.exists(p); readable = true; return r; } catch (e) { if (!readable) throw e; return false; } };
+    try { return await findRepoRoot(cwd, exists); } catch {}
+  }
+  const top = await exec("git", ["rev-parse", "--show-prefix"], { cwd, on, timeout }).catch(() => null);
+  if (top?.code !== 0) return null;
+  const prefix = top.stdout.trim(), root = await projectRootOf(cwd, on, prefix);
+  return root ? { root, prefix } : null;
+}
 
 // 움직이는 GIF·WebP·APNG를 프레임 PNG와 프레임별 간격으로 풀어 캐시에 둔다(anim-frames.js, Chrome의 ImageDecoder).
 // 다른 머신의 그림은 먼저 이 PC로 가져온다. { w, h, durations, frames: [캐시 경로] }
 async function animFrames(full, entry, on) {
+  entry = await withStamp(entry, full, on);
   const dir = `${appHome()}/${CACHE}`, key = `anim-${htmlShotKey(`${on ?? ""}:${full}`, entry?.mtime ?? 0, entry?.size ?? 0, 800).slice(5)}`, meta = `${dir}/${key}.json`;
   const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
@@ -433,9 +462,11 @@ async function cacheImageFast(on, path) {
       // fs.writeFile은 바이트 배열을 0바이트로 써서(모드 런타임 문제) 그림이 빈 화면이 됐다. 복사는 cmd로 하고, 0바이트 캐시는 다시 만든다.
       const dst = `${dir}/${name}`;
       if (!(await fs.exists(dst)) || !(await fs.readFile(dst)).length) {
+        // 먼저 fs로 써 본다(프로그램을 띄우지 않는다). 다시 읽어 크기가 안 맞으면(예전 0바이트 문제) node로 복사한다.
+        const wrote = await fs.writeFile(dst, bytes).then(async () => (await fs.readFile(dst)).length === bytes.length, () => false);
         // cmd copy는 파일 이름의 &·% 를 명령으로 읽을 수 있어서, 셸 없이 node로 복사한다.
-        const r = await exec("node", ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", osPath(path), osPath(dst)]);
-        if (r.code !== 0) throw new Error(r.stderr || "copy failed");
+        const r = wrote ? null : await exec("node", ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", osPath(path), osPath(dst)]);
+        if (r && r.code !== 0) throw new Error(r.stderr || "copy failed");
       }
       return `${name}|${w}|${h}|${w}|${h}`;
     }
@@ -449,7 +480,11 @@ async function cacheImageFast(on, path) {
   return `${name}|${out.w}|${out.h}|${w || out.w}|${h || out.h}`;
 }
 // 캐시 이름: 다른 머신은 경로·수정 시각, 이 PC는 목록에서 아는 크기·수정 시각으로 정해 파일이 바뀌면 새로 만든다.
-const mediaKey = async (on, path, entry) => on ? remoteVideoKey(on, path) : `${remoteName("", path).replace(/\.[^.]*$/, "")}-${entry?.mtime ?? 0}-${entry?.size ?? 0}`;
+const mediaKey = async (on, path, entry) => {
+  if (on) return remoteVideoKey(on, path);
+  entry = await withStamp(entry, path, on);
+  return `${remoteName("", path).replace(/\.[^.]*$/, "")}-${entry?.mtime ?? 0}-${entry?.size ?? 0}`;
+};
 // ffmpeg로 캐시 그림 하나를 만든다(이미 있으면 그대로). PowerShell을 거치지 않아 0.4초쯤 빠르다.
 async function ffmpegToCache(name, inputArgs, outputArgs) {
   const dir = `${appHome()}/${CACHE}`;
@@ -522,6 +557,11 @@ async function probeInfo(src) {
   const r = await exec("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", "-i", src.startsWith("sftp://") ? src : osPath(src)], { timeout: 60000 }).catch(() => null);
   try { return r?.code === 0 ? JSON.parse(r.stdout) : null; } catch { return null; }
 }
+// fs로 읽은 목록에 없는 크기·수정 시각: node 한 번으로 [이름, 폴더인지, 크기, 시각]을 받는다. 못 받으면 null.
+async function statsOf(path) {
+  const r = await exec("node", ["-e", NODE_LIST, path]).catch(() => null);
+  try { return r?.code === 0 ? JSON.parse(r.stdout) : null; } catch { return null; }
+}
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
 
@@ -536,9 +576,13 @@ async function directory(path, on) {
     const result = JSON.parse(r.stdout || "[]");
     return Array.isArray(result) ? result : [result];
   };
-  // 이 PC: node 한 번으로 이름·종류·크기·수정 시각까지 (136ms). PowerShell Get-ChildItem은 1.7초가 걸렸다.
+  // 이 PC: 홈 안이면 fs로 바로 읽는다(프로그램을 띄우지 않는다). 크기·수정 시각은 statsOf로 나중에 채운다.
+  // 보안 프로그램이 있는 회사 PC는 node 하나 띄우는 데 3~4초가 걸려 "목록을 읽는 중"이 오래 떠 있었다.
+  // 홈 밖이면 node 한 번으로 이름·종류·크기·수정 시각까지 (136ms). PowerShell Get-ChildItem은 1.7초가 걸렸다.
   // node가 없으면 Windows는 PowerShell로, macOS는 아래 sh 스크립트로(크기·시각 없이).
   if (!on) {
+    const quick = await fs.readdir(path, { withFileTypes: true }).then(direntEntries, () => null);
+    if (quick) return quick;
     const r = await exec("node", ["-e", NODE_LIST, path]).catch(() => null);
     if (r?.code === 0) return JSON.parse(r.stdout).map(([name, dir, size, mtime]) => ({ name, dir, size, mtime }));
     if (WIN()) return windowsDirectory();
@@ -640,8 +684,7 @@ async function toggleViewer(cx) {
   if (step.action === "open") {
     const loc = location(), msg = folderRequest(loc);
     if (msg) {
-      const top = await exec("git", ["rev-parse", "--show-prefix"], { cwd: loc.cwd, on: loc.on ?? null, timeout: 5000 }).catch(() => null);
-      const root = top?.code === 0 ? await projectRootOf(loc.cwd, loc.on ?? null, top.stdout.trim()) : null;
+      const root = (await repoOf(loc.cwd, loc.on ?? null, 5000))?.root;
       if (root) Object.assign(msg, { folder: root, back: root === loc.cwd ? null : loc.cwd });
     }
     return openInViewer(msg, cx);
@@ -993,6 +1036,7 @@ export default class Files extends View {
     cx.notify();
     cx.spawn(async cx => {
       try {
+        entry = await withStamp(entry, full, on);
         const bin = await findPoppler();
         if (!bin) throw new Error(`PDF를 보려면 Poppler가 필요합니다: ${win ? "winget install oschwartz10612.Poppler" : "brew install poppler"}`);
         const exe = name => `${bin}/${name}${win ? ".exe" : ""}`, os = p => win ? osPath(p) : p;
@@ -1157,13 +1201,33 @@ export default class Files extends View {
     return this.context === context && this.key() === context.key;
   }
 
-  async loadFolder(path, context) {
-    const { on, cwd: root } = context;
-    const entries = await directory(path ? `${root}/${path}` : root, on);
+  async loadFolder(path, context, cx) {
+    const { on, cwd: root } = context, full = path ? `${root}/${path}` : root;
+    const entries = await directory(full, on);
     if (!this.current(context) || (path && !this.folders.has(path))) return;
     const used = [...this.entries.entries()].filter(([p]) => p !== path).reduce((n, [, e]) => n + e.length, 0);
-    this.entries.set(path, entries.slice(0, Math.max(0, Math.min(PER_FOLDER, TOTAL - used))).sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)));
+    const list = entries.slice(0, Math.max(0, Math.min(PER_FOLDER, TOTAL - used))).sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+    this.entries.set(path, list);
     if (entries.length > PER_FOLDER || used + entries.length > TOTAL) this.limited = true;
+    // fs로 읽은 목록(크기·시각 없음)은 먼저 보여 주고, 크기·시각은 뒤에서 채운다.
+    if (!on && cx && list.some(e => e.mtime === undefined)) cx.spawn(async cx => {
+      const rows = await statsOf(full);
+      if (!rows || !this.current(context) || this.entries.get(path) !== list || !mergeStats(list, rows)) return;
+      list.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+      if (this.file && this.fileRoot === this.root && this.dirOf(this.file) === path) this.checkExternal(cx);
+      cx.notify();
+    });
+  }
+
+  dirOf(file) { const cut = file.lastIndexOf("/"); return cut < 0 ? "" : file.slice(0, cut); }
+
+  // 열린 파일이 바깥에서 바뀌었으면(에이전트가 고침) 다시 읽는다. 고치는 중이면 덮지 않고 알린다.
+  checkExternal(cx) {
+    const e = this.entries.get(this.dirOf(this.file))?.find(x => x.name === this.file.slice(this.file.lastIndexOf("/") + 1));
+    const stamp = e?.mtime !== undefined ? `${e.mtime}|${e.size}` : null;
+    if (!stamp) return;
+    if (!this.fileStamp) { this.fileStamp = stamp; return; }
+    if (stamp !== this.fileStamp) { if (this.dirty) this.external = true; else this.show(this.file, cx); }
   }
 
   refresh(cx) {
@@ -1182,38 +1246,48 @@ export default class Files extends View {
     this.limited = false;
     cx.spawn(async cx => {
       try {
-        for (const path of ["", ...this.folders]) {
-          if (!this.current(context)) return;
-          await this.loadFolder(path, context);
-        }
-        // 저장소 안 위치(prefix)를 알아내 git 경로를 지금 폴더 기준으로 바꾼다(Windows \ 경로·심볼릭 링크에서도 표시가 맞게).
-        const top = await exec("git", ["rev-parse", "--show-prefix"], { cwd, on }).catch(() => null);
-        let marks = {};
-        if (top?.code === 0) {
-          // Writes nothing under .git (index lock, fsmonitor cookie): the folder watch would refresh again.
-          const status = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], { cwd, on }).catch(() => null);
-          if (status?.code === 0) marks = gitMarks(status.stdout, top.stdout.trim(), cwd, TOTAL);
-        }
+        // 열린 폴더들은 한꺼번에 읽는다(하나씩 기다리면 폴더 수만큼 느려진다). 다 읽으면 git을 기다리지 않고 바로 그린다.
+        const results = await Promise.allSettled(["", ...this.folders].map(path => this.loadFolder(path, context, cx)));
         if (!this.current(context)) return;
-        // 프로젝트 루트: 저장소 안이면 그 맨 위, 아니면 Ctrl+Shift+G로 연 폴더(baseRoot).
-        let projectRoot = this.baseRoot ?? null;
-        if (top?.code === 0) projectRoot = await projectRootOf(cwd, on, top.stdout.trim());
-        if (!this.current(context)) return;
-        this.marks = marks; this.inRepo = top?.code === 0; this.projectRoot = projectRoot; this.error = null; this.watch(cwd, cx);
+        if (results[0].status === "rejected") throw results[0].reason;
+        this.error = null; this.loading = false; this.watch(cwd, cx);
+        // 목록을 읽은 뒤에 연다(정보 줄의 크기·날짜와 캐시 이름의 수정 시각은 뒤에서 채워지면 다시 맞춘다).
+        if (this.pendingShow) { const f = this.pendingShow; this.pendingShow = null; this.show(f, cx); }
+        else if (this.file && this.fileRoot === this.root) this.checkExternal(cx);
+        cx.notify();
+        await this.updateGit(context);
       } catch (e) { if (this.current(context)) this.error = String(e); }
       finally {
         if (this.context === context) this.loading = false;
-        // 목록을 읽은 뒤에 열어야 정보 줄에 크기·날짜가 들어가고 캐시 이름에 수정 시각이 들어간다.
         if (this.pendingShow && this.context === context) { const f = this.pendingShow; this.pendingShow = null; this.show(f, cx); }
-        else if (this.file && this.fileRoot === this.root && this.context === context) {
-          // 열린 파일이 바깥에서 바뀌었으면(에이전트가 고침) 다시 읽는다. 고치는 중이면 덮지 않고 알린다.
-          const cut = this.file.lastIndexOf("/"), e = this.entries.get(cut < 0 ? "" : this.file.slice(0, cut))?.find(x => x.name === this.file.slice(cut + 1));
-          const stamp = e ? `${e.mtime}|${e.size}` : null;
-          if (stamp && this.fileStamp && stamp !== this.fileStamp) { if (this.dirty) this.external = true; else this.show(this.file, cx); }
-        }
         cx.notify();
       }
     });
+  }
+
+  // git 표시와 프로젝트 루트. 목록을 그린 뒤 뒤에서 돈다. 파일이 자주 바뀌어도 git은 한 번에 하나만 돌리고,
+  // 도는 사이에 들어온 요청은 끝난 뒤 한 번만 다시 돈다(프로그램 띄우기가 느린 PC에서 git이 쌓이지 않게).
+  async updateGit(context) {
+    if (this.gitBusy === context) { this.gitAgain = true; return; }
+    this.gitBusy = context;
+    const { cwd, on } = context;
+    try {
+      do {
+        this.gitAgain = false;
+        // 저장소 안 위치(prefix)를 알아내 git 경로를 지금 폴더 기준으로 바꾼다(Windows \ 경로·심볼릭 링크에서도 표시가 맞게).
+        // 이 PC는 .git을 fs로 찾아 git rev-parse를 띄우지 않는다. 저장소 밖이면 git을 아예 띄우지 않는다.
+        const repo = await repoOf(cwd, on);
+        let marks = {};
+        if (repo) {
+          // Writes nothing under .git (index lock, fsmonitor cookie): the folder watch would refresh again.
+          const status = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], { cwd, on }).catch(() => null);
+          if (status?.code === 0) marks = gitMarks(status.stdout, repo.prefix, cwd, TOTAL);
+        }
+        if (!this.current(context)) return;
+        // 프로젝트 루트: 저장소 안이면 그 맨 위, 아니면 Ctrl+Shift+G로 연 폴더(baseRoot).
+        this.marks = marks; this.inRepo = Boolean(repo); this.projectRoot = repo ? repo.root : this.baseRoot ?? null;
+      } while (this.gitAgain && this.current(context));
+    } finally { if (this.gitBusy === context) this.gitBusy = null; }
   }
 
   toggle(path, cx) {
@@ -1228,7 +1302,7 @@ export default class Files extends View {
         const context = this.context;
         this.pending.add(path);
         cx.spawn(async cx => {
-          try { await this.loadFolder(path, context); }
+          try { await this.loadFolder(path, context, cx); }
           catch (e) { if (this.current(context)) this.error = String(e); }
           finally { if (this.context === context) this.pending.delete(path); cx.notify(); }
         });
@@ -1320,7 +1394,7 @@ export default class Files extends View {
     const cut = path?.lastIndexOf("/") ?? -1, entry = path && this.entries.get(cut < 0 ? "" : path.slice(0, cut))?.find(e => e.name === path.slice(cut + 1));
     this.info = path ? [path.slice(cut + 1), entry?.size != null && formatSize(entry.size), formatDate(entry?.mtime)].filter(Boolean).join(" · ") : "";
     this.dirty = false; this.saving = false; this.external = false;
-    this.fileRoot = this.root; this.fileOn = this.on; this.fileStamp = entry ? `${entry.mtime}|${entry.size}` : null;
+    this.fileRoot = this.root; this.fileOn = this.on; this.fileStamp = entry?.mtime !== undefined ? `${entry.mtime}|${entry.size}` : null;
     // 같은 파일을 두 번 열면(폴더 복원 + 열기 요청) 앞의 비동기 결과가 편집기를 덮어써 새던 것을 막는다: 경로 대신 이 번호로 비교한다.
     const seq = this.showSeq = (this.showSeq ?? 0) + 1;
     if (!path || !cx) return;

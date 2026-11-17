@@ -28,12 +28,14 @@ export default class Picker extends View {
     this.on = this.term?.includes("/") ? this.term.split("/")[0] : null;
     if (!this.term) { this.err = "터미널에 포커스가 없습니다. 경로가 찍힌 터미널을 누른 뒤 다시 여세요."; return; }
     // 화면부터 바로(0.15초쯤) 보여 주고, 위쪽 기록 150줄은 뒤에서 읽어 덧붙인다(기록이 긴 터미널은 수 초 걸린다).
+    // 두 번 읽기는 동시에 시작한다: hc 하나 띄우는 데 몇 초 걸리는 PC(보안 프로그램)에서 차례로 기다리면 두 배가 걸린다.
     cx.spawn(async cx => {
+      const history = hc(["read", "--lines", "150", this.term]).catch(() => null);
       const r = await hc(["read", this.term]).catch(e => ({ code: 1, stderr: String(e) }));
       if (r.code !== 0) { this.err = (r.stderr || "").trim() || "화면을 읽지 못했습니다"; cx.notify(); return; }
       this.all = extractPaths(r.stdout, 80);
       cx.notify();
-      const h = await hc(["read", "--lines", "150", this.term]).catch(() => null);
+      const h = await history;
       if (h?.code !== 0) return;
       const seen = new Set(this.all.map(c => c.text));
       this.all = [...this.all, ...extractPaths(h.stdout, 120).filter(c => !seen.has(c.text))].slice(0, 120);

@@ -397,6 +397,48 @@ export function repoRoot(cwd, prefix) {
   return segs.slice(0, -parts.length).join(sep);
 }
 
+// 프로젝트(git 저장소) 루트를 git 없이: 위로 올라가며 `.git`(폴더든 worktree의 파일이든)이 있는 첫 폴더.
+// prefix는 git rev-parse --show-prefix처럼 루트 기준 위치에 / 를 붙인 것(맨 위면 ""). 경로 표기(\ /)는 그대로 둔다.
+// 저장소 밖이면 null. exists가 던지면(fs가 못 읽는 홈 밖) 그대로 던져서 부르는 쪽이 git으로 넘어가게 한다.
+// 프로그램 하나 띄우는 데 몇 초 걸리는 PC에서 git rev-parse를 기다리지 않으려고 쓴다.
+export async function findRepoRoot(cwd, exists) {
+  if (!cwd) return null;
+  const sep = cwd.includes("\\") && !cwd.includes("/") ? "\\" : "/", segs = cwd.replace(/[\\/]+$/, "").split(/[\\/]/);
+  for (let n = segs.length; n > 0; n--) {
+    const dir = segs.slice(0, n).join(sep);
+    if (await exists(`${dir || sep}${dir ? sep : ""}.git`)) {
+      const rest = segs.slice(n);
+      return { root: dir || sep, prefix: rest.length ? `${rest.join("/")}/` : "" };
+    }
+  }
+  return null;
+}
+
+// fs.readdir(…, { withFileTypes: true }) 결과를 트리 항목 { name, dir }로. .git은 빼고, node 목록처럼 501개까지.
+export function direntEntries(dirents) {
+  const out = [];
+  for (const d of dirents) {
+    if (d.name === ".git") continue;
+    if (out.length > 500) break;
+    out.push({ name: d.name, dir: d.isDirectory() });
+  }
+  return out;
+}
+
+// 목록을 먼저 보여 준 뒤 node로 받은 [이름, 폴더인지, 크기, 수정 시각(초)]을 같은 항목 객체에 채운다.
+// 링크는 node가 가리키는 쪽을 따라서 폴더인지도 고쳐 준다. 바뀐 게 있으면 true.
+export function mergeStats(entries, rows) {
+  const by = new Map(rows.map(r => [r[0], r]));
+  let changed = false;
+  for (const e of entries) {
+    const r = by.get(e.name);
+    if (!r) continue;
+    const [, dir, size, mtime] = r;
+    if (e.dir !== dir || e.size !== size || e.mtime !== mtime) { Object.assign(e, { dir, size, mtime }); changed = true; }
+  }
+  return changed;
+}
+
 // 프로젝트 루트 버튼: 루트가 아니면 루트로 가며 지금 폴더를 기억하고, 루트에 있으면 기억한 폴더로 돌아간다.
 // 필요 없으면(루트를 모르거나, 루트에 있고 돌아갈 곳이 없으면) null. 구분자(\ /)와 끝의 구분자는 같은 폴더로 본다.
 export function rootStep({ current, root, back }) {
