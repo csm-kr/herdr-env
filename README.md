@@ -93,6 +93,8 @@ cd herdr-env
 | Ctrl+Shift+G 프로젝트 루트 찾기 | 약 3초 | 바로 |
 | 경로 열기(Ctrl+Shift+Y) 기록까지 | 약 6초 | 약 3초 |
 
+움직이는 GIF는 처음 열 때 Chrome 대신 ffmpeg로 프레임을 풀어, 움직이기 시작할 때까지 걸리는 시간이 이 PC에서 10~13초에서 1.0~1.7초로 줄었습니다(780×780, 45~68장 GIF. 뽑은 프레임은 Chrome으로 푼 것과 픽셀까지 같습니다). 움직이는 WebP는 ffmpeg가 풀지 못해 지금처럼 Chrome을 씁니다.
+
 측정 방법과 이 PC에서 잰 값은 [bench/RESULTS.md](bench/RESULTS.md)에 있습니다(`node bench/speed.mjs`로 다시 잴 수 있습니다).
 
 ## 개발

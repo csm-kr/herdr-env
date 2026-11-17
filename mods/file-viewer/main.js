@@ -11,7 +11,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand } from "./kind.js";
+import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand, animByFfmpeg, animFfmpegArgs, animDurations } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -290,10 +290,25 @@ async function animFrames(full, entry, on) {
   const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
   if (cached && await fs.exists(`${dir}/${key}-000.png`)) { try { return JSON.parse(cached); } catch {} }
-  const pp = await findPuppeteer(), browser = await findBrowser();
-  if (!pp || !browser) throw new Error("mermaid-cli(puppeteer)와 Chrome·Edge가 있어야 움직입니다");
   const src = on ? await fetchRemote(on, full) : full;
   await fs.mkdir(dir, { recursive: true });
+  // GIF·APNG: ffmpeg로 프레임을 풀고 ffprobe로 간격을 동시에 읽는다(Chrome을 띄우는 것보다 8~10배 빠르다). 안 되면 아래 Chrome으로.
+  if (animByFfmpeg(full)) {
+    const [probe, made] = await Promise.all([
+      exec("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=duration_time", "-of", "csv=p=0", p(src)], { timeout: 60000 }).catch(() => null),
+      exec("ffmpeg", animFfmpegArgs(p(src), p(`${dir}/${key}`), 800), { timeout: 120000 }).catch(() => null)]);
+    const durations = probe?.code === 0 ? animDurations(probe.stdout) : [];
+    const frames = durations.map((_, i) => `${CACHE}/${key}-${String(i).padStart(3, "0")}.png`);
+    if (made?.code === 0 && frames.length && await fs.exists(`${appHome()}/${frames.at(-1)}`)) {
+      const { w, h } = imageSize(await fs.readFile(`${appHome()}/${frames[0]}`));
+      const out = { w, h, durations, frames };
+      await fs.writeFile(meta, JSON.stringify(out));
+      return out;
+    }
+    await logDebug(`ffmpeg로 프레임을 풀지 못해 Chrome으로: ${made?.stderr ?? ""}`);
+  }
+  const pp = await findPuppeteer(), browser = await findBrowser();
+  if (!pp || !browser) throw new Error("mermaid-cli(puppeteer)와 Chrome·Edge가 있어야 움직입니다");
   const r = await exec("node", [p(`${appHome()}/mods/${NAME}/anim-frames.js`), p(pp), browser, p(src), p(`${dir}/${key}`), "800"], { timeout: 120000 });
   if (r.code !== 0) throw new Error((r.stderr || "").trim() || "프레임을 풀지 못했습니다");
   const m = JSON.parse(r.stdout);

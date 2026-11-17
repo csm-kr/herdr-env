@@ -192,6 +192,22 @@ export function isAnimatable(path) {
   return ["gif", "webp", "apng"].includes(extOf(path));
 }
 
+// GIF·APNG는 ffmpeg로 프레임을 푼다(780×780 50장 GIF: Chrome 10초 → ffmpeg 1초). 움직이는 WebP는 ffmpeg가 못 풀어 Chrome으로.
+export function animByFfmpeg(path) {
+  return ["gif", "apng"].includes(extOf(path));
+}
+
+// 프레임마다 PNG 하나(<접두어>-000.png부터, anim-frames.js와 같은 이름), 폭은 maxW까지 줄이고 비율은 그대로, 150장까지.
+export function animFfmpegArgs(src, out, maxW) {
+  return ["-y", "-v", "error", "-i", src, "-frames:v", "150", "-fps_mode", "passthrough",
+    "-vf", `scale='min(${maxW},iw)':-1`, "-start_number", "0", `${out}-%03d.png`];
+}
+
+// ffprobe -show_entries frame=duration_time의 줄(초)을 프레임별 간격(ms)으로. 못 읽은 값은 0(frameAt이 100ms로 본다).
+export function animDurations(text) {
+  return text.split(/\r?\n/).filter(l => l.trim()).slice(0, 150).map(l => Math.round((Number(l) || 0) * 1000));
+}
+
 // 지난 시간(elapsed ms)에 보여 줄 프레임 번호. durations: 프레임별 간격(ms), 끝나면 처음부터. 0 이하 간격은 100ms(브라우저와 같게).
 export function frameAt(durations, elapsed) {
   if (!durations.length) return 0;
