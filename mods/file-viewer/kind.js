@@ -543,6 +543,7 @@ export function treeMenu(entry) {
     { id: "downloads", label: "다운로드 폴더 열기" },
     { id: "copy", label: "경로 복사" },
     entry.dir ? { id: "root", label: "이 폴더를 루트로" } : { id: "open", label: "기본 앱으로 열기" },
+    { id: "delete", label: "삭제" },
   ];
 }
 
@@ -575,6 +576,23 @@ const NODE_CREATE = "const fs=require('fs'),[k,p]=process.argv.slice(1);try{k===
 export function createCommand(kind, path, on) {
   if (on) return ["sh", ["-c", 'if [ "$1" = folder ]; then mkdir -- "$2"; else set -C; : > "$2"; fi', "sh", kind, path]];
   return ["node", ["-e", NODE_CREATE, kind, path]];
+}
+
+// 트리에서 지우는 명령 [프로그램, 인자]. 이 PC는 휴지통으로 옮기고(Windows: VisualBasic FileSystem, macOS: Finder),
+// 다른 머신은 휴지통이 없어 rm -r. 경로는 인자로 넘긴다. 빈 경로·맨 위(/, 드라이브)는 실수로라도 만들지 않는다.
+export function deleteCommand(path, on, platform) {
+  if (!path || /^([A-Za-z]:)?[\\/]*$/.test(path)) throw new Error(`지울 수 없는 경로입니다: ${path}`);
+  if (on) return ["sh", ["-c", 'rm -r -- "$1"', "sh", path]];
+  if (platform === "macos") return ["osascript", ["-e", "on run argv", "-e", 'tell application "Finder" to delete (POSIX file (item 1 of argv) as alias)', "-e", "end run", path]];
+  return ["powershell", ["-NoProfile", "-Command", "& { param($p) Add-Type -AssemblyName Microsoft.VisualBasic; $fs = [Microsoft.VisualBasic.FileIO.FileSystem]; " +
+    "if (Test-Path -LiteralPath $p -PathType Container) { $fs::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } " +
+    "elseif (Test-Path -LiteralPath $p) { $fs::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } else { throw '파일이 없습니다' } } " + psQuote(path)]];
+}
+
+// 삭제 확인 창의 글.
+export function deleteNotice(name, dir, on) {
+  const what = `${dir ? "폴더" : "파일"} '${name}'`;
+  return on ? `${on}의 ${what}${dir ? "와 그 안의 모든 것" : ""}을 지웁니다. 휴지통이 없어 되돌릴 수 없습니다.` : `${what}을 휴지통으로 옮깁니다.`;
 }
 
 // 다른 머신의 폴더 목록(GNU find). -H: 시작 폴더가 심볼릭 링크(~/ep2)여도 따라간다. 없으면 목록이 빈다.

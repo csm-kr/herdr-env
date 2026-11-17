@@ -11,7 +11,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand, animByFfmpeg, animFfmpegArgs, animDurations, animFrameFiles } from "./kind.js";
+import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand, animByFfmpeg, animFfmpegArgs, animDurations, animFrameFiles, deleteCommand, deleteNotice } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -1033,8 +1033,7 @@ export default class Files extends View {
         if (a.frames.length > 1) this.anim = { ...a, start: Date.now(), i: 0 };
         cx.notify();
       } catch (e) {
-        await logDebug(`움직이는 그림 풀기 실패: ${e?.message ?? e}
-${e?.stack ?? ""}`);
+        await logDebug(`움직이는 그림 풀기 실패: ${e?.message ?? e} ${e?.stack ?? ""}`);
         if (noPicture && this.showSeq === seq) { this.fileError = `움직이는 그림을 풀지 못했습니다: ${e?.message ?? e}`; cx.notify(); }
       }
     });
@@ -1261,7 +1260,7 @@ ${e?.stack ?? ""}`);
       if (this.context) this.saved.set(this.context.key, { folders: this.folders });
       const saved = this.saved.get(next);
       this.context = { key: next, cwd, on }; this.root = cwd; this.on = on; this.entries = new Map(); this.folders = new Set(saved?.folders);
-      this.pending = new Set(); this.marks = {}; this.watched = null; this.error = null; this.limited = false; this.cancelCreate();
+      this.pending = new Set(); this.marks = {}; this.watched = null; this.error = null; this.limited = false; this.cancelCreate(); this.deleting = null;
       this.loading = false;
     }
     if (!cwd || this.loading) return;
@@ -1345,7 +1344,8 @@ ${e?.stack ?? ""}`);
 
   menuAction(id, path, cx, entry) {
     const full = `${this.root}/${path}`, on = this.on;
-    if (id === "newFile" || id === "newFolder") this.startCreate(id === "newFolder" ? "folder" : "file", createParent(path, entry?.dir ?? true), entry?.at, cx);
+    if (id === "delete") { this.cancelCreate(); this.deleting = { path, dir: entry?.dir ?? false, at: entry?.at, root: this.root, on, context: this.context, busy: false, error: null }; cx.notify(); }
+    else if (id === "newFile" || id === "newFolder") this.startCreate(id === "newFolder" ? "folder" : "file", createParent(path, entry?.dir ?? true), entry?.at, cx);
     else if (id === "copy") { const p = copyPath(this.root, path); cx.write_to_clipboard(p); setShared(COPIED, p); }
     else if (id === "root") this.navigate(full, cx);
     // 탐색기로 다운로드 폴더를 연다(사용자가 옮겨 둔 자리도 shell:Downloads가 따라간다). explorer는 성공해도 1을 돌려준다.
@@ -1382,6 +1382,44 @@ ${e?.stack ?? ""}`);
         .child(svg(`mods/file-viewer/${c.kind === "folder" ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().min_w(0).child(Input.new(c.state))))
       .child(div().text_size(11).text_color(c.error ? t.ansi1 : t.dim).child(c.error || (c.busy ? "만드는 중…" : "Enter 만들기 · Esc 취소")));
+  }
+  // 삭제 확인 창: 우클릭한 자리에 뜨고 [삭제]를 눌러야 지운다. 이 PC는 휴지통으로, 다른 머신은 rm -r.
+  deleteView(t) {
+    const d = this.deleting, name = d.path.slice(d.path.lastIndexOf("/") + 1);
+    const cancel = cx => { if (this.deleting === d && !d.busy) { this.deleting = null; cx.notify(); } };
+    const button = (id, label, danger, act) => div().id(id).px(10).py(4).rounded(6).border_1().border_color(danger ? t.ansi1 : t.border)
+      .text_color(danger ? t.ansi1 : t.foreground).cursor_pointer().hover(s => s.bg(t.hover)).on_click((_e, cx) => act(cx)).child(label);
+    return v_flex().id("delete-box").w(300).p(10).gap(8).rounded(8).border_1().border_color(t.border).bg(t.raised).shadow_md().text_size(13)
+      .on_mouse_down_out((_e, cx) => cancel(cx))
+      .child(div().child(deleteNotice(name, d.dir, d.on)))
+      .when(Boolean(d.error) || d.busy, el => el.child(div().text_size(11).text_color(d.error ? t.ansi1 : t.dim).child(d.error || "지우는 중…")))
+      .child(h_flex().gap(8).justify_end()
+        .child(button("delete-cancel", "취소", false, cancel))
+        .child(button("delete-ok", "삭제", true, cx => this.confirmDelete(cx))));
+  }
+  confirmDelete(cx) {
+    const d = this.deleting;
+    if (!d || d.busy) return;
+    const full = `${d.root}/${d.path}`, inside = p => p === d.path || p.startsWith(d.path + "/");
+    let cmd, args;
+    try { [cmd, args] = deleteCommand(d.on ? full : WIN() ? osPath(full) : full, d.on, WIN() ? "windows" : MAC() ? "macos" : "linux"); }
+    catch (e) { d.error = String(e?.message ?? e); cx.notify(); return; }
+    // 지울 파일이 열려 있으면 먼저 닫는다(재생 중인 영상이 파일을 잡고 있으면 지워지지 않는다).
+    if (this.file && this.fileRoot === d.root && inside(this.file)) this.show(null);
+    d.busy = true; d.error = null;
+    cx.notify();
+    cx.spawn(async cx => {
+      const r = await exec(cmd, args, { on: d.on, timeout: 30000 }).catch(e => ({ code: 1, stderr: String(e?.message ?? e) }));
+      if (this.deleting !== d) return;
+      if (r.code !== 0) { d.busy = false; d.error = (r.stderr || "").trim().split(/\r?\n/)[0] || "지우지 못했습니다"; cx.notify(); return; }
+      this.deleting = null;
+      if (this.current(d.context)) {
+        for (const f of [...this.folders]) if (inside(f)) { this.folders.delete(f); this.entries.delete(f); }
+        const cut = d.path.lastIndexOf("/");
+        await this.loadFolder(cut < 0 ? "" : d.path.slice(0, cut), d.context, cx).catch(() => null);
+      }
+      cx.notify();
+    });
   }
   cancelCreate() { this.creating?.state.release(); this.creating = null; }
   finishCreate(cx) {
@@ -1653,10 +1691,12 @@ ${e?.stack ?? ""}`);
         else if ((e.keystroke === "ctrl-f" || e.keystroke === "cmd-f") && this.text != null) { this.openFind(cx); cx.notify(); }
         else if (e.keystroke === "escape" && this.menu) { this.menu = null; cx.notify(); }
         else if (e.keystroke === "escape" && this.creating) { this.cancelCreate(); cx.notify(); }
+        else if (e.keystroke === "escape" && this.deleting && !this.deleting.busy) { this.deleting = null; cx.notify(); }
         else if (e.keystroke === "escape" && this.find) { this.closeFind(); cx.notify(); }
       })
       .when(Boolean(this.menu), el => el.child(at("tree-menu-at", this.menu.at, this.menuView(this.menu.path, this.menu, t))))
       .when(this.creating?.root === this.root && Boolean(this.creating), el => el.child(at("create-at", this.creating.at, this.createView(t))))
+      .when(this.deleting?.root === this.root && Boolean(this.deleting), el => el.child(at("delete-at", this.deleting.at, this.deleteView(t))))
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(role !== "tree" && Boolean(this.file) && !wide, el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null, cx); cx.notify(); }).child("←")))
         // 트리 접기/펴기 (미리보기 탭).
