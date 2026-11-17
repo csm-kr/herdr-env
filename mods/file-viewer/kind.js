@@ -208,6 +208,11 @@ export function animDurations(text) {
   return text.split(/\r?\n/).filter(l => l.trim()).slice(0, 150).map(l => Math.round((Number(l) || 0) * 1000));
 }
 
+// 캐시 안 프레임 경로(<접두어>-000.<ext>부터). ffmpeg(GIF·APNG)는 png, Chrome(WebP)은 webp로 쓴다.
+export function animFrameFiles(dir, key, count, ext) {
+  return Array.from({ length: count }, (_, i) => `${dir}/${key}-${String(i).padStart(3, "0")}.${ext}`);
+}
+
 // 지난 시간(elapsed ms)에 보여 줄 프레임 번호. durations: 프레임별 간격(ms), 끝나면 처음부터. 0 이하 간격은 100ms(브라우저와 같게).
 export function frameAt(durations, elapsed) {
   if (!durations.length) return 0;

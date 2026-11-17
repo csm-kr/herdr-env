@@ -11,7 +11,7 @@ import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle, InputState
 import * as fs from "fs/promises";
 import { shared, setShared } from "herdr";
 import { spaces, panes, focused, exec, readTextFile, writeTextFile, watchFolder, theme, settings, window, props, appHome, notify, run, closeOverlay, hc, machines, home, nextCommand } from "herdr";
-import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand, animByFfmpeg, animFfmpegArgs, animDurations } from "./kind.js";
+import { kindOf, psQuote, localPath, ffplayArgv, fit, remoteName, clock, position, seekTo, clickToSeconds, ffplayArgs, parseSshG, sftpUrl, parseOpenRequest, parseLinkRequest, copyPath, playBadge, viewerToggle, rightOf, folderRequest, rootStep, repoRoot, parseRelative, pickNewest, machineCandidates, pickFolder, remoteListArgs, splitMermaid, mermaidName, browserCandidates, isDark, htmlShotKey, htmlWidth, isAnimatable, frameAt, zoomStep, parseCsv, findLines, tailLines, parseDiff, showMediaBar, mpvWindowArgs, mpvDockArgs, dockRect, dockLine, quoteArgs, clampTree, initialSeen, readyRemotes, currentSpace, cacheToDelete, csvWidths, extOf, gitMarks, mpvCandidates, splitPath, formatSize, formatDate, parseFindListing, mediaSummary, breadcrumbs, imageSize, discardGate, follows, freeName, treeMenu, parsePdfInfo, pdfNext, pdfPageFile, pdftoppmArgs, popplerCandidates, pdfKey, findRepoRoot, direntEntries, mergeStats, createParent, checkNewName, newName, createCommand, animByFfmpeg, animFfmpegArgs, animDurations, animFrameFiles } from "./kind.js";
 
 function location(last) {
   const f = focused(), space = currentSpace(f, spaces());
@@ -289,7 +289,8 @@ async function animFrames(full, entry, on) {
   const dir = `${appHome()}/${CACHE}`, key = `anim-${htmlShotKey(`${on ?? ""}:${full}`, entry?.mtime ?? 0, entry?.size ?? 0, 800).slice(5)}`, meta = `${dir}/${key}.json`;
   const p = path => window()?.platform === "windows" ? osPath(path) : path;
   const cached = await readTextFile(meta).catch(() => null);
-  if (cached && await fs.exists(`${dir}/${key}-000.png`)) { try { return JSON.parse(cached); } catch {} }
+  // 기록된 첫 프레임이 있으면 그대로 쓴다(예전 png 프레임 캐시도 된다).
+  try { const c = cached && JSON.parse(cached); if (c?.frames?.length && await fs.exists(`${appHome()}/${c.frames[0]}`)) return c; } catch {}
   const src = on ? await fetchRemote(on, full) : full;
   await fs.mkdir(dir, { recursive: true });
   // GIF·APNG: ffmpeg로 프레임을 풀고 ffprobe로 간격을 동시에 읽는다(Chrome을 띄우는 것보다 8~10배 빠르다). 안 되면 아래 Chrome으로.
@@ -298,7 +299,7 @@ async function animFrames(full, entry, on) {
       exec("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=duration_time", "-of", "csv=p=0", p(src)], { timeout: 60000 }).catch(() => null),
       exec("ffmpeg", animFfmpegArgs(p(src), p(`${dir}/${key}`), 800), { timeout: 120000 }).catch(() => null)]);
     const durations = probe?.code === 0 ? animDurations(probe.stdout) : [];
-    const frames = durations.map((_, i) => `${CACHE}/${key}-${String(i).padStart(3, "0")}.png`);
+    const frames = animFrameFiles(CACHE, key, durations.length, "png");
     if (made?.code === 0 && frames.length && await fs.exists(`${appHome()}/${frames.at(-1)}`)) {
       const { w, h } = imageSize(await fs.readFile(`${appHome()}/${frames[0]}`));
       const out = { w, h, durations, frames };
@@ -312,7 +313,7 @@ async function animFrames(full, entry, on) {
   const r = await exec("node", [p(`${appHome()}/mods/${NAME}/anim-frames.js`), p(pp), browser, p(src), p(`${dir}/${key}`), "800"], { timeout: 120000 });
   if (r.code !== 0) throw new Error((r.stderr || "").trim() || "프레임을 풀지 못했습니다");
   const m = JSON.parse(r.stdout);
-  const out = { w: m.w, h: m.h, durations: m.durations, frames: m.durations.map((_, i) => `${CACHE}/${key}-${String(i).padStart(3, "0")}.png`) };
+  const out = { w: m.w, h: m.h, durations: m.durations, frames: animFrameFiles(CACHE, key, m.durations.length, "webp") };
   await fs.writeFile(meta, JSON.stringify(out));
   return out;
 }
@@ -1021,13 +1022,21 @@ export default class Files extends View {
   zoomBy(dir, box) { this.zoom = zoomStep(this.zoom, dir, this.fitScale(box)); }
 
   // 움직이는 그림을 프레임으로 푼다. 프레임이 둘 이상이면 this.anim에 두고 1초 타이머 대신 50ms 타이머가 보이는 동안만 넘긴다.
-  drawAnim(full, entry, on, cx) {
+  // noPicture: 첫 장면을 못 만든 그림이라 첫 프레임을 그림으로 쓴다.
+  drawAnim(full, entry, on, cx, noPicture = false) {
     const seq = this.showSeq;
     cx.spawn(async cx => {
       try {
         const a = await animFrames(full, entry, on);
-        if (this.showSeq === seq && a.frames.length > 1) { this.anim = { ...a, start: Date.now(), i: 0 }; cx.notify(); }
-      } catch (e) { await logDebug(`움직이는 그림 풀기 실패: ${e?.stack ?? e}`); }
+        if (this.showSeq !== seq) return;
+        if (noPicture && a.frames.length) { this.picture = { path: a.frames[0], w: a.w, h: a.h, clip: false }; this.fileError = null; }
+        if (a.frames.length > 1) this.anim = { ...a, start: Date.now(), i: 0 };
+        cx.notify();
+      } catch (e) {
+        await logDebug(`움직이는 그림 풀기 실패: ${e?.message ?? e}
+${e?.stack ?? ""}`);
+        if (noPicture && this.showSeq === seq) { this.fileError = `움직이는 그림을 풀지 못했습니다: ${e?.message ?? e}`; cx.notify(); }
+      }
     });
   }
 
@@ -1496,7 +1505,11 @@ export default class Files extends View {
           // 움직이는 GIF·WebP: image()는 첫 장면만 그려서, 프레임으로 풀어 보이는 동안 직접 넘긴다.
           if (shown() && kind === "image" && isAnimatable(path)) this.drawAnim(full, entry, on, cx);
           if (kind === "image" && Number(ow)) addInfo(`${ow}×${oh}${ow !== w ? ` (${w}×${h}로 줄여 보기)` : ""}`);
-        } catch { if (shown()) this.fileError = kind === "video" ? "영상 미리보기를 만들지 못했습니다. 이 PC에 ffmpeg가 설치돼 있어야 합니다." : "이미지를 불러오지 못했습니다."; }
+        } catch {
+          // ffmpeg가 못 푸는 움직이는 WebP(2MB 넘는 것)는 첫 장면도 못 만든다: 프레임으로 풀어 첫 프레임부터 보여 준다.
+          if (shown() && kind === "image" && isAnimatable(path)) { this.fileError = "움직이는 그림을 푸는 중…"; this.drawAnim(full, entry, on, cx, true); }
+          else if (shown()) this.fileError = kind === "video" ? "영상 미리보기를 만들지 못했습니다. 이 PC에 ffmpeg가 설치돼 있어야 합니다." : "이미지를 불러오지 못했습니다.";
+        }
         finally { cx.notify(); }
       });
       return;

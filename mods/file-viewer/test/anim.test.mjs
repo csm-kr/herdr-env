@@ -1,7 +1,7 @@
 // 움직이는 GIF·WebP 테스트. 실행: node --test test/anim.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { frameAt, isAnimatable, animByFfmpeg, animFfmpegArgs, animDurations } from "../kind.js";
+import { frameAt, isAnimatable, animByFfmpeg, animFfmpegArgs, animDurations, animFrameFiles } from "../kind.js";
 
 test("frameAt: 프레임별 간격(ms)을 따라 지난 시간에 맞는 프레임, 끝나면 처음부터", () => {
   const d = [100, 200, 100]; // 합 400
@@ -42,4 +42,10 @@ test("animDurations: ffprobe의 프레임별 duration_time(초)을 ms로, 못 �
   assert.deepEqual(animDurations("0.070000\r\n0.060000\nN/A\n\n"), [70, 60, 0]);
   assert.deepEqual(animDurations(""), []);
   assert.equal(animDurations(Array(200).fill("0.1").join("\n")).length, 150);
+});
+
+test("animFrameFiles: 캐시 안 프레임 경로. ffmpeg(GIF·APNG)는 png, Chrome(WebP)은 webp(png보다 7배 작아 옮기기가 빠르다)", () => {
+  assert.deepEqual(animFrameFiles("cache/file-viewer", "anim-1-w800", 3, "webp"),
+    ["cache/file-viewer/anim-1-w800-000.webp", "cache/file-viewer/anim-1-w800-001.webp", "cache/file-viewer/anim-1-w800-002.webp"]);
+  assert.equal(animFrameFiles("c", "k", 1, "png")[0], "c/k-000.png");
 });
