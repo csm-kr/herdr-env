@@ -1328,7 +1328,7 @@ export default class Files extends View {
 
   menuView(path, entry, t) {
     const close = cx => { this.menu = null; cx.notify(); };
-    return v_flex().id("tree-menu").w(190).mt(28).p(4).rounded(8).border_1().border_color(t.border).bg(t.raised).shadow_md().text_size(13)
+    return v_flex().id("tree-menu").w(190).p(4).rounded(8).border_1().border_color(t.border).bg(t.raised).shadow_md().text_size(13)
       .on_mouse_down_out((_e, cx) => close(cx))
       .children(treeMenu(entry).map(m => div().id(`tree-menu-${m.id}`).px(10).py(5).rounded(6).cursor_pointer().hover(s => s.bg(t.hover))
         .on_click((_e, cx) => { close(cx); this.menuAction(m.id, path, cx, entry); }).child(m.label)));
@@ -1336,7 +1336,7 @@ export default class Files extends View {
 
   menuAction(id, path, cx, entry) {
     const full = `${this.root}/${path}`, on = this.on;
-    if (id === "newFile" || id === "newFolder") this.startCreate(id === "newFolder" ? "folder" : "file", createParent(path, entry?.dir ?? true), cx);
+    if (id === "newFile" || id === "newFolder") this.startCreate(id === "newFolder" ? "folder" : "file", createParent(path, entry?.dir ?? true), entry?.at, cx);
     else if (id === "copy") { const p = copyPath(this.root, path); cx.write_to_clipboard(p); setShared(COPIED, p); }
     else if (id === "root") this.navigate(full, cx);
     // 탐색기로 다운로드 폴더를 연다(사용자가 옮겨 둔 자리도 shell:Downloads가 따라간다). explorer는 성공해도 1을 돌려준다.
@@ -1351,17 +1351,28 @@ export default class Files extends View {
     });
   }
 
-  // 새 파일·새 폴더: 만들 폴더(parent) 맨 위에 이름 칸을 띄운다. Enter로 만들고 Esc로 취소한다.
-  startCreate(kind, parent, cx) {
+  // 새 파일·새 폴더: 우클릭한 마우스 자리에 이름 칸을 띄운다. Enter로 만들고 Esc로 취소한다.
+  startCreate(kind, parent, pointer, cx) {
     this.cancelCreate();
     if (parent && !this.folders.has(parent)) this.toggle(parent, cx);
     const taken = (this.entries.get(parent) ?? []).map(e => e.name);
     const state = InputState.new({ value: newName(kind, taken) });
-    this.creating = { kind, parent, state, root: this.root, on: this.on, context: this.context, error: null, busy: false };
+    this.creating = { kind, parent, state, at: pointer, root: this.root, on: this.on, context: this.context, error: null, busy: false };
     state.on("change", (_e, cx) => { if (this.creating?.state === state && this.creating.error) { this.creating.error = null; cx.notify(); } });
     state.on("submit", (_e, cx) => this.finishCreate(cx));
     state.focus();
     cx.notify();
+  }
+  createView(t) {
+    const c = this.creating, cancel = cx => { if (this.creating === c && !c.busy) { this.cancelCreate(); cx.notify(); } };
+    return v_flex().id("create-box").w(280).p(8).gap(4).rounded(8).border_1().border_color(t.border).bg(t.raised).shadow_md().text_size(13)
+      .on_mouse_down_out((_e, cx) => cancel(cx))
+      .on_key_down((e, cx) => { if (e.keystroke === "escape") { cancel(cx); cx.stop_propagation?.(); } })
+      .child(div().text_size(11).text_color(t.dim).child(`${c.kind === "folder" ? "새 폴더" : "새 파일"} · ${c.parent || "맨 위 폴더"}`))
+      .child(h_flex().gap(7).items_center()
+        .child(svg(`mods/file-viewer/${c.kind === "folder" ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
+        .child(div().flex_1().min_w(0).child(Input.new(c.state))))
+      .child(div().text_size(11).text_color(c.error ? t.ansi1 : t.dim).child(c.error || (c.busy ? "만드는 중…" : "Enter 만들기 · Esc 취소")));
   }
   cancelCreate() { this.creating?.state.release(); this.creating = null; }
   finishCreate(cx) {
@@ -1538,29 +1549,20 @@ export default class Files extends View {
 
   rows(prefix, depth, out, t) {
     if (out.length >= TOTAL || depth > 40) return out;
-    const c = this.creating;
-    if (c && c.parent === prefix && c.root === this.root) out.push(v_flex().id("create-row").flex_none().pl(8 + depth * 18).pr(8).py(2)
-      .child(h_flex().h(28).gap(7).items_center()
-        .child(div().w(12).flex_none())
-        .child(svg(`mods/file-viewer/${c.kind === "folder" ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
-        .child(div().flex_1().min_w(0).child(Input.new(c.state))))
-      .when(Boolean(c.error) || c.busy, el => el.child(div().pl(19).pt(2).text_size(11).text_color(c.error ? t.ansi1 : t.dim).child(c.error || "만드는 중…")))
-      .when(!c.error && !c.busy, el => el.child(div().pl(19).pt(2).text_size(11).text_color(t.dim).child("Enter 만들기 · Esc 취소"))));
     for (const entry of this.entries.get(prefix) ?? []) {
       if (out.length >= TOTAL) break;
       const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[`${this.root}/${path}`];
       const row = h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
         .when(path === this.file && this.fileRoot === this.root || this.menu?.path === path, el => el.bg(t.selected))
         .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.pick(path, cx))
-        .on_mouse_down("right", (_e, cx) => { this.menu = { path, dir: entry.dir }; cx.stop_propagation?.(); cx.notify(); })
+        .on_mouse_down("right", (_e, cx) => { this.menu = { path, dir: entry.dir, at: this.pointer }; cx.stop_propagation?.(); cx.notify(); })
         .when(entry.dir, el => el.on_mouse_down("left", (e, cx) => { if (e.click_count === 2) this.navigate(`${this.root}/${path}`, cx); }))
         .child(entry.dir ? svg(`mods/file-viewer/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
         .child(svg(`mods/file-viewer/${entry.dir ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().min_w(0).truncate().child(entry.name))
         .when(!entry.dir && entry.size != null, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(`${formatSize(entry.size)}${entry.mtime ? " · " + formatDate(entry.mtime).split(" ")[0] : ""}`)))
         .when(Boolean(mark), el => el.child(div().text_size(11).text_color(mark === "A" ? t.ansi2 : mark === "D" || mark === "U" ? t.ansi1 : t.blocked).child(mark)));
-      // 우클릭 메뉴: 그 행에 붙어 뜨고, 바깥을 누르거나 Esc를 누르면 닫힌다.
-      out.push(this.menu?.path === path ? Popup.new(`menu-${path}`, row).anchor("top_left").content(this.menuView(path, entry, t)) : row);
+      out.push(row);
       if (entry.dir && open) this.rows(path, depth + 1, out, t);
     }
     return out;
@@ -1572,8 +1574,7 @@ export default class Files extends View {
     const t = theme(), wide = this.wide, native = WIN() || MAC(), kind = this.file ? kindOf(this.file) : null;
     const button = (id, label, act) => div().id(id).flex_none().px(8).py(3).rounded(6).border_1().border_color(t.border).text_size(12).cursor_pointer().hover(s => s.bg(t.hover)).on_click((_e, cx) => act(cx)).child(label);
     const tree = () => v_flex().id("files-tree").min_h(0).overflow_y_scrollbar().p(6)
-      .on_mouse_down("right", (_e, cx) => { if (!this.root) return; this.menu = { path: "", dir: true, top: true }; cx.notify(); })
-      .when(Boolean(this.menu?.top), el => el.child(Popup.new("menu-top", div().h(0)).anchor("top_left").content(this.menuView("", { dir: true, top: true }, t))))
+      .on_mouse_down("right", (_e, cx) => { if (!this.root) return; this.menu = { path: "", dir: true, top: true, at: this.pointer }; cx.notify(); })
       .children(this.rows("", 0, [], t))
       .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "목록을 읽는 중…" : this.root ? "파일이 없습니다" : "터미널에서 Ctrl+Shift+G를 누르면 그 폴더가 열립니다"))))
       .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("목록은 폴더마다 500개, 모두 5,000개까지만 보여 줍니다")));
@@ -1628,9 +1629,11 @@ export default class Files extends View {
         .child(preview())
       : this.file || role === "viewer" && this.treeHidden ? preview() : tree().flex_1();
     const tools = role !== "tree";
-    return v_flex().id("files").size_full().min_h(0).when(role !== "tree", el => el.rounded(10).border_1().border_color(t.border)).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
+    // 우클릭 메뉴와 새 파일·폴더 이름 칸은 우클릭한 마우스 자리에 띄운다(바깥을 누르거나 Esc를 누르면 닫힌다).
+    const at = (id, p, content) => Popup.new(id, div().size(1)).absolute().left(p?.x ?? 40).top(p?.y ?? 80).anchor("top_left").content(content);
+    return v_flex().id("files").relative().size_full().min_h(0).when(role !== "tree", el => el.rounded(10).border_1().border_color(t.border)).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
       .on_size_change((size, cx) => { this.size = size; this.wide = size.width >= 720; cx.notify(); })
-      .on_mouse_move((e, cx) => { if (e.bounds) this.rootBounds = e.bounds; if (!this.dragging) return; this.treeW = clampTree(this.dragging.w0 + e.position.x - this.dragging.x0, this.size?.width ?? 1200); cx.notify(); })
+      .on_mouse_move((e, cx) => { this.pointer = e.local_position; if (e.bounds) this.rootBounds = e.bounds; if (!this.dragging) return; this.treeW = clampTree(this.dragging.w0 + e.position.x - this.dragging.x0, this.size?.width ?? 1200); cx.notify(); })
       .on_mouse_up("left", (_e, cx) => { if (!this.dragging) return; this.dragging = null; setShared(TREEW, this.treeW); cx.notify(); })
       .on_key_down((e, cx) => {
         if (e.keystroke === "ctrl-s" || e.keystroke === "cmd-s") this.save(cx);
@@ -1639,6 +1642,8 @@ export default class Files extends View {
         else if (e.keystroke === "escape" && this.creating) { this.cancelCreate(); cx.notify(); }
         else if (e.keystroke === "escape" && this.find) { this.closeFind(); cx.notify(); }
       })
+      .when(Boolean(this.menu), el => el.child(at("tree-menu-at", this.menu.at, this.menuView(this.menu.path, this.menu, t))))
+      .when(this.creating?.root === this.root && Boolean(this.creating), el => el.child(at("create-at", this.creating.at, this.createView(t))))
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(role !== "tree" && Boolean(this.file) && !wide, el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null, cx); cx.notify(); }).child("←")))
         // 트리 접기/펴기 (미리보기 탭).
