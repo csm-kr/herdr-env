@@ -10,8 +10,16 @@ herdr-app 0.1.15, Windows, 2026-11-12 기준. 모두 `keys.json`의 `global` 섹
 | `ctrl-shift-l` | 없음 | 삭제. 기본값은 `layout.switch`(레이아웃 전환) |
 | `ctrl-shift-g` | `mod.open:file-viewer` | 추가. 미리보기 탭 열기/돌아가기 (이 저장소의 `mods/file-viewer` 필요) |
 | `ctrl-shift-y` | `mod.open:path-picker` | 추가. 터미널 화면의 경로 골라 열기 (`mods/path-picker` 필요) |
+| `alt-up` / `alt-down` | `pane.go:up` / `pane.go:down` | 바꿈. 기본값은 `agent.prev` / `agent.next`(에이전트 전환) |
+| `alt-shift-←↑→↓` | `pane.swap:<방향>` | 추가. pane 자리 바꾸기 |
+| `alt-h` `j` `k` `l` | 없음 | 삭제. 기본값은 `pane.go:<방향>` |
+| `alt-shift-h` `j` `k` `l` | 없음 | 삭제. 기본값은 `pane.swap:<방향>` |
 
 기본값의 `ctrl-shift-pageup` / `ctrl-shift-pagedown`(`space.prev` / `space.next`)은 그대로 둔다.
+
+## pane 키는 화살표로
+
+pane 이동은 `Alt+화살표`, 자리 바꾸기는 `Alt+Shift+화살표`로 통일했다. vim 식 HJKL은 헷갈려서 뺐다. `Alt+←/→`(`pane.go:left/right`)는 기본값 그대로다. 그 대신 에이전트 전환(`agent.next`/`agent.prev`)에는 키가 없다.
 
 ## 닫기 키 세 개
 
@@ -28,7 +36,7 @@ herdr-app 0.1.15, Windows, 2026-11-12 기준. 모두 `keys.json`의 `global` 섹
 Windows에서는 저장소 루트의 `keys.ps1`이 아래 일을 대신 한다(`install.ps1`이 부른다). 이 표를 바꾸면 `keys.ps1`의 목록도 같이 바꾼다.
 
 1. 대상 PC의 `keys.json`을 읽고, 위 키가 이미 다른 동작에 묶여 있는지 본다. 묶여 있으면 사용자에게 묻는다.
-2. 추가 줄을 넣고 `ctrl-shift-l` 줄을 뺀다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 PC에서만 넣는다(`mods/file-viewer/install.ps1`이 대신 넣어 준다).
+2. 삭제·바꿈 줄을 먼저 빼고(`ctrl-shift-l`, `alt-up`/`alt-down`의 에이전트 전환, `alt-hjkl`, `alt-shift-hjkl`) 추가 줄을 넣는다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 PC에서만 넣는다(`mods/file-viewer/install.ps1`이 대신 넣어 준다).
 3. `keys.error`가 없고 `herdr-app status`의 `errors`가 비어 있는지 확인한다.
 
 설정을 더 바꾸고 저장소에도 남겨 달라는 요청을 받으면 이 표를 고쳐 커밋한다.

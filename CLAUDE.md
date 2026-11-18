@@ -24,7 +24,7 @@
 |---|---|---|
 | 모드 두 개 복사 | `~\.config\herdr-app\mods` | `~/.config/herdr-app/mods` |
 | 스킬 복사 | `~\.claude\skills` | `~/.claude/skills` |
-| 내 단축키 | `keys.ps1` (Ctrl+Shift+↑↓·Q·G·Y 넣기, L 빼기) | `keys-mac.mjs` (`references/csm-kr-preset-mac.md`의 19개 넣기, `cmd-shift-l`·`cmd-shift-w` 빼기, `option_as_alt`를 `"on"`으로) |
+| 내 단축키 | `keys.ps1` (Ctrl+Shift+↑↓·Q·G·Y 넣기, L 빼기, pane 이동·자리 바꾸기를 Alt(+Shift)+화살표로, Alt(+Shift)+HJKL 빼기) | `keys-mac.mjs` (`references/csm-kr-preset-mac.md`의 19개 넣기, `cmd-shift-l`·`cmd-shift-w` 빼기, `option_as_alt`를 `"on"`으로) |
 | 빠진 도구 설치 | winget·npm (ffmpeg, mpv, node, git, ssh, mermaid-cli, Poppler) | brew·npm (ffmpeg, mpv, node, mermaid-cli, Poppler) |
 | `herdrview:` 링크 등록 | 한다 | 아직 안 한다 |
 

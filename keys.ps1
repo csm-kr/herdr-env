@@ -12,13 +12,33 @@ $add = [ordered]@{
   'ctrl-shift-q'    = 'space.close'           # 스페이스 닫기(확인 창이 뜬다)
   'ctrl-shift-g'    = 'mod.open:file-viewer'  # 미리보기 탭
   'ctrl-shift-y'    = 'mod.open:path-picker'  # 경로 열기
+  'alt-up'          = 'pane.go:up'            # pane 이동은 Alt+화살표 (←→는 기본값)
+  'alt-down'        = 'pane.go:down'
+  'alt-shift-left'  = 'pane.swap:left'        # pane 자리 바꾸기는 Alt+Shift+화살표
+  'alt-shift-right' = 'pane.swap:right'
+  'alt-shift-up'    = 'pane.swap:up'
+  'alt-shift-down'  = 'pane.swap:down'
 }
-# 뺄 키: 이 동작에 묶여 있을 때만 뺀다
-$remove = @{ 'ctrl-shift-l' = 'layout.switch' }
+# 뺄 키: 이 동작에 묶여 있을 때만 뺀다. 넣기보다 먼저 한다(alt-up/down을 기본 동작에서 풀어야 넣을 수 있다)
+$remove = [ordered]@{
+  'ctrl-shift-l' = 'layout.switch'
+  'alt-up'       = 'agent.prev'
+  'alt-down'     = 'agent.next'
+  'alt-h' = 'pane.go:left';         'alt-j' = 'pane.go:down';         'alt-k' = 'pane.go:up';         'alt-l' = 'pane.go:right'
+  'alt-shift-h' = 'pane.swap:left'; 'alt-shift-j' = 'pane.swap:down'; 'alt-shift-k' = 'pane.swap:up'; 'alt-shift-l' = 'pane.swap:right'
+}
 
 if (-not (Test-Path -LiteralPath $KeysPath)) { throw "keys.json이 없습니다($KeysPath). Herdr를 한 번 실행한 뒤 다시 돌리세요." }
 $raw = [IO.File]::ReadAllText($KeysPath, [Text.Encoding]::UTF8)
 $orig = $raw
+
+foreach ($k in $remove.Keys) {
+  $pat = '"' + [regex]::Escape($k) + '"\s*:\s*"' + [regex]::Escape($remove[$k]) + '"'
+  if ($raw -match ('[ \t]*' + $pat + '\s*,[ \t]*\r?\n')) { $raw = [regex]::Replace($raw, '[ \t]*' + $pat + '\s*,[ \t]*\r?\n', '', 1) }
+  elseif ($raw -match (',\s*' + $pat)) { $raw = [regex]::Replace($raw, ',(\s*)' + $pat, '', 1) }   # 섹션의 마지막 줄
+  else { continue }
+  Write-Host "단축키 뺌: $k ($($remove[$k]))"
+}
 
 foreach ($k in $add.Keys) {
   $want = $add[$k]
@@ -30,14 +50,6 @@ foreach ($k in $add.Keys) {
     $raw = [regex]::Replace($raw, '("global"\s*:\s*\{)', ('$1' + "`n    `"$k`": `"$want`","), 1)
     Write-Host "단축키 넣음: $k → $want"
   } else { Write-Host "keys.json에 global 섹션이 없어 $k 를 넣지 못했습니다." -ForegroundColor Yellow }
-}
-
-foreach ($k in $remove.Keys) {
-  $pat = '"' + [regex]::Escape($k) + '"\s*:\s*"' + [regex]::Escape($remove[$k]) + '"'
-  if ($raw -match ('[ \t]*' + $pat + '\s*,[ \t]*\r?\n')) { $raw = [regex]::Replace($raw, '[ \t]*' + $pat + '\s*,[ \t]*\r?\n', '', 1) }
-  elseif ($raw -match (',\s*' + $pat)) { $raw = [regex]::Replace($raw, ',(\s*)' + $pat, '', 1) }   # 섹션의 마지막 줄
-  else { continue }
-  Write-Host "단축키 뺌: $k ($($remove[$k]))"
 }
 
 if ($raw -eq $orig) { Write-Host 'keys.json: 바꿀 것 없음'; return }
