@@ -48,6 +48,44 @@ Herdr 안에서 VS Code를 열지 않고 파일을 바로 보는 미리보기 �
 
 터미널 화면에서 절대·상대 경로를 모두 찾아 목록으로 보여 주고, 고르면 file-viewer로 엽니다. 어떤 에이전트(Claude Code, Codex 등)가 찍은 경로든 됩니다. 화면 폭에서 꺾여 두 줄이 된 경로도 이어 붙입니다.
 
+## 단축키 (Windows)
+
+내 설정을 넣은 뒤의 단축키입니다. **★**는 기본값에서 바꾸거나 더한 키입니다. 전체 목록은 Herdr에서 Ctrl+Shift+/로 볼 수 있습니다. Mac은 [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)을 봅니다.
+
+| 묶음 | 키 | 동작 |
+|---|---|---|
+| 스페이스 | Alt+1 ~ Alt+9 | N번째 스페이스 |
+| | Ctrl+Shift+↑ / ↓ ★ | 이전 / 다음 스페이스 (Ctrl+Shift+PageUp / PageDown도 됨) |
+| | Ctrl+Shift+N | 새 스페이스 |
+| | Ctrl+Shift+Q ★ | 스페이스 닫기 (확인 창이 뜸) |
+| | Shift+F2 | 스페이스 이름 바꾸기 |
+| 탭 | Ctrl+1 ~ Ctrl+9 | N번째 탭 |
+| | Ctrl+Tab, Ctrl+PageDown, Alt+] | 다음 탭 |
+| | Ctrl+Shift+Tab, Ctrl+PageUp, Alt+[ | 이전 탭 |
+| | Ctrl+Shift+T / Ctrl+Shift+W | 새 탭 / 탭 닫기 |
+| | F2 | 탭 이름 바꾸기 |
+| pane | Alt+← / → / ↑ / ↓ ★ | 그쪽 pane으로 이동 |
+| | Alt+Shift+← / → / ↑ / ↓ ★ | 그쪽 pane과 자리 바꾸기 |
+| | Ctrl+Shift+O / Ctrl+Shift+E | 오른쪽 / 아래로 나누기 |
+| | Ctrl+Shift+Z | pane 확대 토글 |
+| | Ctrl+Shift+X | pane 닫기 |
+| 모드 | Ctrl+Shift+G ★ | 미리보기 탭(file-viewer) 열기 / 돌아가기 |
+| | Ctrl+Shift+Y ★ | 터미널 화면의 경로 골라 열기(path-picker) |
+| | Ctrl+Shift+K | 모드 고르기 |
+| 터미널 | Ctrl+Shift+C, Ctrl+Insert | 복사 |
+| | Ctrl+Shift+V, Shift+Insert | 붙여넣기 (Ctrl+V는 그림 붙여넣기) |
+| | Ctrl+Shift+F | 터미널 안 검색 |
+| | Ctrl+← / → , Ctrl+Backspace | 단어 단위 이동 / 지우기 |
+| 앱·화면 | Ctrl+Shift+P | 명령 팔레트 |
+| | Ctrl+, | 설정 |
+| | Ctrl+Shift+B | 사이드바 접기 |
+| | Ctrl+= / Ctrl+- / Ctrl+0 | 확대 / 축소 / 원래 크기 |
+| | Ctrl+Shift+/ | 단축키 목록 |
+| | Ctrl+Alt+Shift+Esc | 비상 탈출: 기본 화면으로 (바꿀 수 없음) |
+
+- 닫는 키는 범위가 작은 것부터 **X**(pane) → **W**(탭) → **Q**(스페이스) 순서입니다.
+- 기본값에서 뺀 키: Ctrl+Shift+L(레이아웃 전환), Alt+↑/↓의 에이전트 전환, Alt+H/J/K/L(pane 이동), Alt+Shift+H/J/K/L(자리 바꾸기). pane 키는 헷갈리지 않게 화살표로만 씁니다.
+
 ## 직접 설치 (Windows)
 
 Herdr를 한 번 실행해 둔 뒤, PowerShell에서:
@@ -61,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Install
 `install.ps1`이 모드 두 개를 `~\.config\herdr-app\mods`로, 스킬을 `~\.claude\skills`로 복사하고 `mods\file-viewer\install.ps1`(링크 등록·단축키·도구)을 돌립니다. 여러 번 돌려도 되고, 업데이트할 때는 `git pull` 뒤 다시 돌리면 됩니다.
 
 - `install.ps1`은 ffmpeg·ffprobe·ffplay(`Gyan.FFmpeg`), mpv(`shinchiro.mpv`), Poppler(PDF), node, git, ssh, mermaid-cli를 확인하고 `-Install`이면 winget·npm으로 설치합니다.
-- 단축키는 `keys.ps1`이 맞춥니다. Ctrl+Shift+↑/↓(스페이스 전환), Ctrl+Shift+Q(스페이스 닫기), Ctrl+Shift+G·Y(모드)를 넣고 Ctrl+Shift+L(레이아웃 전환)을 뺍니다. `keys.json`을 통째로 덮지 않고 그 줄만 고치며, 다른 동작에 이미 쓰이는 키는 그대로 두고 알려 줍니다.
+- 단축키는 `keys.ps1`이 맞춥니다. Ctrl+Shift+↑/↓(스페이스 전환), Ctrl+Shift+Q(스페이스 닫기), Ctrl+Shift+G·Y(모드), Alt+↑/↓(pane 이동), Alt+Shift+화살표(pane 자리 바꾸기)를 넣고 Ctrl+Shift+L(레이아웃 전환), Alt(+Shift)+H/J/K/L을 뺍니다. 자세한 건 위 [단축키](#단축키-windows) 표를 봅니다. `keys.json`을 통째로 덮지 않고 그 줄만 고치며, 다른 동작에 이미 쓰이는 키는 그대로 두고 알려 줍니다.
 - Herdr 설정(`settings.json`)과 레이아웃은 기본값을 쓰므로 저장소에 넣지 않았습니다.
 - 다른 머신의 영상·그림은 ffmpeg·mpv가 sftp로 읽습니다. 그래서 `~/.ssh` 기본 키로 비밀번호 없이 접속돼야 합니다.
 - `gpui-kit.d.ts`(모드 API 설명)는 Herdr가 모드 폴더에 만들어 주므로 저장소에 넣지 않았습니다.
@@ -102,7 +140,7 @@ cd herdr-env
 ```bash
 cd mods/file-viewer && node --test test/*.mjs   # 순수 로직(kind.js) 테스트
 herdr-app check .                              # 모드 검사
-node --test test/*.mjs                         # 저장소 맨 위에서: keys-mac.mjs 테스트
+node --test test/*.mjs                         # 저장소 맨 위에서: keys-mac.mjs·keys.ps1 테스트
 ```
 
 확인한 환경: herdr-app 0.1.15, Windows 11과 macOS(Apple Silicon).
