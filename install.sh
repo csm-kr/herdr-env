@@ -5,7 +5,7 @@
 # 하는 일
 #   1. mods/file-viewer, mods/path-picker를 ~/.config/herdr-app/mods 로 복사한다(같은 파일은 덮어쓴다).
 #   2. 미리보기에 쓰는 도구(ffmpeg·ffprobe·ffplay, mpv, node, git, ssh·scp, mermaid-cli, Poppler)가 있는지 본다.
-#   3. keys-mac.mjs로 내 단축키(Ctrl+Shift·Option 키 19개 넣기, Cmd+Shift+L·W 빼기)와 option_as_alt를 맞춘다.
+#   3. keys-mac.mjs로 내 단축키(Ctrl+Shift·Option 키 19개 넣기, Cmd+Shift+L·W와 터미널의 Option+←/→ 단어 이동 빼기)와 option_as_alt를 맞춘다.
 #   4. skills/herdr-shortcuts를 ~/.claude/skills 로 복사한다.
 # herdrview: 링크 등록과 장면 자리에 붙는 mpv 창은 아직 Windows에서만 된다.
 set -euo pipefail

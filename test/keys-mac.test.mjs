@@ -11,14 +11,22 @@ const BASE = `{
     "cmd-w": "tab.close"
   },
   "terminal": {
-    "cmd-f": "terminal.search"
+    "cmd-f": "terminal.search",
+    "alt-left": "send:\\u001bb",
+    "alt-right": "send:\\u001bf",
+    "alt-backspace": "send:\\u0017"
   }
 }`;
 
-test("목록: 넣을 키 19개(기존 17개 + 미리보기 G, 경로 열기 Y), 뺄 키 2개", () => {
+test("목록: 넣을 키 19개(기존 17개 + 미리보기 G, 경로 열기 Y), 뺄 키 8개. pane 이동은 Option+화살표", () => {
   assert.equal(ADD.length, 19);
   assert.deepEqual(ADD.filter(([, a]) => a.startsWith("mod.open:")), [["ctrl-shift-g", "mod.open:file-viewer"], ["ctrl-shift-y", "mod.open:path-picker"]]);
-  assert.deepEqual(REMOVE, { "cmd-shift-l": "layout.switch", "cmd-shift-w": "pane.close" });
+  assert.deepEqual(ADD.filter(([, a]) => a.startsWith("pane.go:")), [["alt-left", "pane.go:left"], ["alt-down", "pane.go:down"], ["alt-up", "pane.go:up"], ["alt-right", "pane.go:right"]]);
+  assert.deepEqual(REMOVE, {
+    "cmd-shift-l": "layout.switch", "cmd-shift-w": "pane.close",
+    "alt-left": "send:\\u001bb", "alt-right": "send:\\u001bf",
+    "alt-h": "pane.go:left", "alt-j": "pane.go:down", "alt-k": "pane.go:up", "alt-l": "pane.go:right",
+  });
 });
 
 test("applyKeys: 없는 키는 global 맨 앞에 목록 순서대로 넣고, 뺄 키 줄을 뺀다. 결과는 올바른 JSON이다", () => {
@@ -29,9 +37,13 @@ test("applyKeys: 없는 키는 global 맨 앞에 목록 순서대로 넣고, 뺄
   assert.equal(keys.global["cmd-shift-w"], undefined);
   assert.equal(keys.global["cmd-t"], "tab.new");
   assert.equal(keys.terminal["cmd-f"], "terminal.search");
+  assert.equal(keys.terminal["alt-left"], undefined);
+  assert.equal(keys.terminal["alt-right"], undefined);
+  assert.equal(keys.terminal["alt-backspace"], "send:\u0017");
   assert.deepEqual(Object.keys(keys.global).slice(0, 2), [ADD[0][0], ADD[1][0]]);
+  assert.equal(log.filter(l => l.kind === "conflict").length, 0);
   assert.equal(log.filter(l => l.kind === "added").length, 19);
-  assert.equal(log.filter(l => l.kind === "removed").length, 2);
+  assert.equal(log.filter(l => l.kind === "removed").length, 4);
 });
 
 test("applyKeys: 두 번 돌려도 같다(이미 있는 키는 건드리지 않는다)", () => {
@@ -43,12 +55,12 @@ test("applyKeys: 두 번 돌려도 같다(이미 있는 키는 건드리지 않�
 
 test("applyKeys: 다른 동작에 쓰이는 키는 덮어쓰지 않고 알린다(문자열·객체 동작, terminal 섹션 모두)", () => {
   const raw = BASE.replace('"cmd-t": "tab.new",', '"cmd-t": "tab.new",\n    "ctrl-shift-g": "app.palette",\n    "ctrl-shift-z": {"command": "layout.resize", "args": {"px": 240}},')
-    .replace('"cmd-f": "terminal.search"', '"cmd-f": "terminal.search",\n    "alt-h": "terminal"');
+    .replace('"cmd-f": "terminal.search",', '"cmd-f": "terminal.search",\n    "alt-up": "terminal",');
   const out = applyKeys(raw), keys = JSON.parse(out.raw);
   assert.equal(keys.global["ctrl-shift-g"], "app.palette");
   assert.equal(keys.global["ctrl-shift-z"].command, "layout.resize");
-  assert.equal(keys.global["alt-h"], undefined);
-  assert.deepEqual(out.log.filter(l => l.kind === "conflict").map(l => l.key).sort(), ["alt-h", "ctrl-shift-g", "ctrl-shift-z"]);
+  assert.equal(keys.global["alt-up"], undefined);
+  assert.deepEqual(out.log.filter(l => l.kind === "conflict").map(l => l.key).sort(), ["alt-up", "ctrl-shift-g", "ctrl-shift-z"]);
   assert.equal(out.log.find(l => l.key === "ctrl-shift-g").current, "app.palette");
 });
 
@@ -57,6 +69,16 @@ test("applyKeys: 뺄 키가 다른 동작에 묶여 있으면 빼지 않는다. 
   assert.equal(JSON.parse(other.raw).global["cmd-shift-w"], "tab.close");
   const last = applyKeys(`{\n  "global": {\n    "cmd-t": "tab.new",\n    "cmd-shift-l": "layout.switch"\n  }\n}`);
   assert.equal(JSON.parse(last.raw).global["cmd-shift-l"], undefined);
+});
+
+test("applyKeys: 옛 설정의 Option+H/J/K/L pane 이동을 빼고 Option+화살표로 바꾼다. 다른 동작에 묶인 H는 둔다", () => {
+  const old = BASE.replace('"cmd-t": "tab.new",', '"cmd-t": "tab.new",\n    "alt-h": "pane.go:left",\n    "alt-j": "pane.go:down",\n    "alt-k": "pane.go:up",\n    "alt-l": "pane.go:right",');
+  const keys = JSON.parse(applyKeys(old).raw);
+  for (const k of ["alt-h", "alt-j", "alt-k", "alt-l"]) assert.equal(keys.global[k], undefined);
+  assert.equal(keys.global["alt-left"], "pane.go:left");
+  assert.equal(keys.global["alt-down"], "pane.go:down");
+  const mine = JSON.parse(applyKeys(BASE.replace('"cmd-t": "tab.new",', '"cmd-t": "tab.new",\n    "alt-h": "app.help",')).raw);
+  assert.equal(mine.global["alt-h"], "app.help");
 });
 
 test("applyKeys: global 섹션이 없으면 넣지 못했다고 알리고 글은 그대로 둔다", () => {
