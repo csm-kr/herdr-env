@@ -24,29 +24,28 @@ export const ADD = [
   ["ctrl-shift-e", "pane.split:down"],
   ["ctrl-shift-x", "pane.close"],
   ["ctrl-shift-z", "pane.zoom"],
-  ["alt-h", "pane.go:left"],
-  ["alt-j", "pane.go:down"],
-  ["alt-k", "pane.go:up"],
-  ["alt-l", "pane.go:right"],
+  ["alt-left", "pane.go:left"],
+  ["alt-down", "pane.go:down"],
+  ["alt-up", "pane.go:up"],
+  ["alt-right", "pane.go:right"],
   ["ctrl-shift-g", "mod.open:file-viewer"],
   ["ctrl-shift-y", "mod.open:path-picker"],
 ];
 // 뺄 키: 이 동작에 묶여 있을 때만 뺀다.
-export const REMOVE = { "cmd-shift-l": "layout.switch", "cmd-shift-w": "pane.close" };
+// terminal 섹션이 global보다 우선이라, Option+←/→ 단어 이동을 빼야 global의 pane 이동이 듣는다(단어 이동은 Option+B/F).
+// alt-h/j/k/l은 예전 설정에서 넣던 pane 이동이다. 화살표로 옮기면서 뺀다.
+export const REMOVE = {
+  "cmd-shift-l": "layout.switch", "cmd-shift-w": "pane.close",
+  "alt-left": "send:\\u001bb", "alt-right": "send:\\u001bf",
+  "alt-h": "pane.go:left", "alt-j": "pane.go:down", "alt-k": "pane.go:up", "alt-l": "pane.go:right",
+};
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // keys.json 글에서 해당 줄만 넣고 뺀다. log: [{ kind: "has" | "added" | "conflict" | "nosection" | "removed", key, action, current? }]
 export function applyKeys(raw, add = ADD, remove = REMOVE) {
   const log = [], insert = [];
-  const hasGlobal = /"global"\s*:\s*\{/.test(raw);
-  for (const [key, action] of add) {
-    const m = raw.match(new RegExp(`"${esc(key)}"\\s*:\\s*(?:"([^"]*)"|(\\{))`));
-    if (m) log.push(m[1] === action ? { kind: "has", key, action } : { kind: "conflict", key, action, current: m[2] ? "(여러 인자를 쓰는 동작)" : m[1] });
-    else if (!hasGlobal) log.push({ kind: "nosection", key, action });
-    else { insert.push(`\n    "${key}": "${action}",`); log.push({ kind: "added", key, action }); }
-  }
-  if (insert.length) raw = raw.replace(/("global"\s*:\s*\{)/, `$1${insert.join("")}`);
+  // 빼기를 먼저 한다. 그래야 기본 terminal의 alt-left 같은 줄이 빠진 뒤 같은 키를 global에 넣을 수 있다.
   for (const [key, action] of Object.entries(remove)) {
     const pat = `"${esc(key)}"\\s*:\\s*"${esc(action)}"`;
     const line = new RegExp(`[ \\t]*${pat}\\s*,[ \\t]*\\r?\\n`), last = new RegExp(`,\\s*${pat}`);
@@ -55,6 +54,14 @@ export function applyKeys(raw, add = ADD, remove = REMOVE) {
     else continue;
     log.push({ kind: "removed", key, action });
   }
+  const hasGlobal = /"global"\s*:\s*\{/.test(raw);
+  for (const [key, action] of add) {
+    const m = raw.match(new RegExp(`"${esc(key)}"\\s*:\\s*(?:"([^"]*)"|(\\{))`));
+    if (m) log.push(m[1] === action ? { kind: "has", key, action } : { kind: "conflict", key, action, current: m[2] ? "(여러 인자를 쓰는 동작)" : m[1] });
+    else if (!hasGlobal) log.push({ kind: "nosection", key, action });
+    else { insert.push(`\n    "${key}": "${action}",`); log.push({ kind: "added", key, action }); }
+  }
+  if (insert.length) raw = raw.replace(/("global"\s*:\s*\{)/, `$1${insert.join("")}`);
   return { raw, log };
 }
 

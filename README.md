@@ -25,7 +25,7 @@ herdr-env/
 
 Windows와 Mac 모두 **같은 문장**을 쓰면 됩니다. Mac에서는 `install.sh`가 이렇게 합니다.
 - 모드 두 개(미리보기, 경로 열기)와 단축키 스킬을 설치합니다.
-- [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Option 키 19개를 넣고 Cmd+Shift+L·W를 뺍니다.
+- [Mac용 단축키 목록](skills/herdr-shortcuts/references/csm-kr-preset-mac.md)대로 `keys.json`을 맞춥니다. Ctrl+Shift·Option 키 19개를 넣고 Cmd+Shift+L·W를 뺍니다. pane 이동은 Option+화살표라서 터미널의 Option+←/→ 단어 이동을 빼고, 단어 이동은 Option+B/F로 합니다.
 - `option_as_alt`를 켭니다.
 - 빠진 도구(ffmpeg, mpv, node, mermaid-cli, Poppler)를 brew·npm으로 설치합니다.
 

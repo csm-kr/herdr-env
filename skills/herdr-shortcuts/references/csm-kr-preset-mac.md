@@ -1,6 +1,6 @@
 # 기본값에서 바꾼 단축키 (macOS)
 
-herdr-app 0.1.15, macOS, 2026-11-12 기준. 앱에 들어 있는 Mac 기본 `keys.json`과 비교했다. 바뀐 키는 모두 `global` 섹션이고, `terminal` 섹션은 기본값 그대로다.
+herdr-app 0.1.15, macOS, 2026-11-12 기준. 앱에 들어 있는 Mac 기본 `keys.json`과 비교했다. 넣은 키는 모두 `global` 섹션이고, `terminal` 섹션에서는 Option+←/→ 단어 이동 두 줄만 뺐다.
 
 Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거의 그대로 두고, Windows에서 쓰는 `ctrl-shift` 키와 `alt` 키를 같은 동작으로 얹는다. 그래서 두 OS에서 같은 손가락으로 같은 일을 한다.
 
@@ -21,21 +21,28 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 | `ctrl-shift-e` | `pane.split:down` | `ctrl-shift-o` 아래 |
 | `ctrl-shift-x` | `pane.close` | `ctrl-shift-e` |
 | `ctrl-shift-z` | `pane.zoom` | `cmd-shift-enter` |
-| `alt-h` | `pane.go:left` | `cmd-alt-down` |
-| `alt-j` | `pane.go:down` | `alt-h` 아래 |
-| `alt-k` | `pane.go:up` | `alt-j` 아래 |
-| `alt-l` | `pane.go:right` | `alt-k` 아래 |
+| `alt-left` | `pane.go:left` | `cmd-alt-down` |
+| `alt-down` | `pane.go:down` | `alt-left` 아래 |
+| `alt-up` | `pane.go:up` | `alt-down` 아래 |
+| `alt-right` | `pane.go:right` | `alt-up` 아래 |
 | `ctrl-shift-g` | `mod.open:file-viewer` | 미리보기 탭 열기/돌아가기 (이 저장소의 `mods/file-viewer` 필요) |
 | `ctrl-shift-y` | `mod.open:path-picker` | 터미널 화면의 경로 골라 열기 (`mods/path-picker` 필요) |
 
 넣는 자리는 기능에 영향이 없다. 이 Mac의 파일과 같은 순서로 맞춰 두면 나중에 비교하기 쉬워서 적어 둔다.
 
-## 뺀 키 (2개)
+## 뺀 키 (4개)
 
 | 키 | 기본 동작 |
 |---|---|
 | `cmd-shift-l` | `layout.switch` (레이아웃 전환). Windows에서 `ctrl-shift-l`을 뺀 것과 같은 짝 |
 | `cmd-shift-w` | `pane.close` (창 닫기). 탭을 닫는 `ctrl-shift-w`와 글자가 같아 헷갈려서 뺐다. 창 닫기는 `ctrl-shift-x`만 쓴다 |
+| `alt-left` / `alt-right` (`terminal` 섹션) | `send:\u001bb` / `send:\u001bf` (터미널 안 단어 이동). 아래 "pane 키는 화살표로"를 본다 |
+
+예전 설정에서 넣던 `alt-h` `j` `k` `l`(`pane.go:<방향>`)이 남아 있으면 그것도 뺀다.
+
+## pane 키는 화살표로
+
+pane 이동은 Windows와 같이 `Option+화살표`로 한다. vim 식 HJKL은 헷갈려서 뺐다. `terminal` 섹션이 `global`보다 우선이라, 기본값의 `Option+←/→` 단어 이동을 빼야 터미널 안에서도 pane 이동이 듣는다. 단어 이동은 `Option+B` / `Option+F`로 한다(`option_as_alt`가 `"on"`이면 셸이 `backward-word` / `forward-word`로 받는다). 단어 지우기 `Option+Backspace`는 그대로다.
 
 ## 닫기 키
 
@@ -56,7 +63,7 @@ Mac 기본값은 `cmd` 키 위주다. 우리 설정은 `cmd` 기본 키를 거�
 저장소 맨 위의 `keys-mac.mjs`가 아래 일을 대신 한다(`install.sh`가 부른다). 이 표를 바꾸면 `keys-mac.mjs`의 목록도 같이 바꾼다.
 
 1. 대상 Mac의 `keys.json`을 읽고, 위 키가 이미 다른 동작에 묶여 있는지 본다. 묶여 있으면 사용자에게 묻는다.
-2. 추가 19줄을 넣고 `cmd-shift-l`, `cmd-shift-w` 두 줄을 뺀다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 Mac에서만 넣는다.
+2. 뺄 줄을 먼저 빼고(`cmd-shift-l`, `cmd-shift-w`, 터미널의 `alt-left`·`alt-right`, 예전 `alt-hjkl`) 추가 19줄을 넣는다. 먼저 빼야 `alt-left`·`alt-right`가 겹친다고 나오지 않는다. 파일을 통째로 덮어쓰지 않는다. 그 Mac의 버전에 새로 생긴 기본 단축키가 사라진다. 모드 키 두 개는 그 모드를 `~/.config/herdr-app/mods/`에 넣은 Mac에서만 넣는다.
 3. `settings.json`의 `option_as_alt`를 `"on"`으로 둔다.
 4. 적용을 확인한다.
 
